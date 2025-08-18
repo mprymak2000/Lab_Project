@@ -33,6 +33,9 @@ class Plasmid:
         instance._bag = bag
         instance.volume_1 = cls._validate_volume(volume_1, required=False)  # Flexible
         instance.volume_2 = cls._validate_volume(volume_2, required=False)
+        if instance.volume_1 is None and instance.volume_2 is not None:
+            instance.volume_1 = instance.volume_2
+            instance.volume_2 = None
         instance.notes = notes
 
         return instance
@@ -89,16 +92,29 @@ class Plasmid:
 
     # Some setter functions with input validation: volume_1, volume_2, notes
     def add_volume(self, volume):
-        if self.volume_2 is None:
-            self.volume_2 = self._validate_volume(volume, required=False)
+        if self.volume_1 is not None and self.volume_2 is not None:
+            raise ValueError("Both volumes already set. Use update_volume_2 to change it.")
+        validated_volume = self._validate_volume(volume, required=True)
+        if self.volume_1 is not None:
+            self.volume_2 = validated_volume
         else:
-            raise ValueError("Volume 2 already set. Use update_volume_2 to change it.")
+            self.volume_2 = validated_volume
 
     #only delete a volume if another exists
     def delete_volume_1(self):
-        if self.volume_2 is None:
+        if self.volume_1 is None and self.volume_2 is None:
             raise ValueError("If no volumes exist, please delete the whole plasmid record")
-        self.volume_1 = self.volume_2
+        if self.volume_2 is not None:
+            self.volume_1 = self.volume_2
+            self.volume_2 = None
+        else:
+            self.volume_1 = None
+            print(f"Volume 1 is deleted. If no samples exist, please delete the whole plasmid record")
+
+    def delete_volume_2(self):
+        if self.volume_2 is None:
+            raise ValueError("No volume 2 exists")
+        self.volume_2 = None
 
     def update_volume_1(self, volume):
         self.update_volume(volume, 1)
@@ -174,8 +190,9 @@ class PlasmidCollection:
 
         for plasmid_string in plasmid_strings:
             # Use Plasmid validation for parsing
-            temp_plasmid = Plasmid.temp_plasmid_from_full(plasmid_string)
-            plasmids.append(temp_plasmid)
+            if plasmid_string.strip():
+                temp_plasmid = Plasmid.temp_plasmid_from_full(plasmid_string)
+                plasmids.append(temp_plasmid)
 
         return cls(plasmids)
 

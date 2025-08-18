@@ -2,7 +2,7 @@
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
-from backend.try_2 import Plasmid, PlasmidCollection
+from try_2 import Plasmid, PlasmidCollection
 
 
 # TODO: Think about cursor, singleton connection, env files
@@ -58,7 +58,7 @@ def batch_search_plasmids(user_input):
         requested_collection = PlasmidCollection.from_user_input(user_input)
 
         # Step 2: Get database results using repository function
-        found_collection = batch_search_database(requested_collection)
+        found_collection = _batch_search_database(requested_collection)
 
         # Step 3: Let collection handle result formatting
         return requested_collection.to_dict(found_collection)
@@ -66,7 +66,7 @@ def batch_search_plasmids(user_input):
     except ValueError as e:
         return {'error': str(e)}
 
-def batch_search_database(requested_collection):
+def _batch_search_database(requested_collection):
     """Repository function - handles database operations for batch search"""
 
     # Get lots/sublots for database query
@@ -115,6 +115,7 @@ def add_plasmid(lot, sublot, volume_1, volume_2=None, notes=None):
 
     if existing_plasmid is None:
         # Step 2: make a new plasmid record
+        # TODO: NEED TO DETERMINE WHETHER TO ASSIGN TO EXISTING BAG OR MAKE NEW ONE
         bag = _generate_bag_number()         #generate bag number if not provided
         plasmid = Plasmid(temp_plasmid.lot, temp_plasmid.sublot, bag=bag, volume_1=volume_1, volume_2=volume_2, notes=notes)
 
