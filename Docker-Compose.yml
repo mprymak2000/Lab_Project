@@ -1,0 +1,35 @@
+services:
+  database:
+    image: postgres:latest
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: lab_db
+      POSTGRES_USER: lab_user
+      POSTGRES_PASSWORD: lab_pass
+    volumes:
+      - lab_data:/var/lib/postgresql/data
+      - ./Data:/data
+
+  pgadmin:
+    image: dpage/pgadmin4
+    ports:
+      - "8080:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@lab.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+
+  backend:
+    build: ./backend
+    ports:
+      - "5000:5000"
+    depends_on:
+      - database
+    volumes:
+      - ./backend:/app
+      - ./Data:/data
+    environment:
+      - DATABASE_URL=postgresql://lab_user:lab_pass@database:5432/lab_db
+
+volumes:
+  lab_data:
