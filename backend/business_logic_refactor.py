@@ -7,7 +7,7 @@ from try_2 import Plasmid, PlasmidCollection
 
 # TODO: Think about cursor, singleton connection, env files
 # TODO: think about adding plasmids, letting user decide bag, or auto doing it, or both.
-
+# TODO: FURIN
 
 #----------------------------
 # Database Connection Layer
@@ -29,7 +29,7 @@ class PlasmidDatabase:
         if self._connection is None or self._connection.closed:
             # TODO: Use environment variables for connection params
             self._connection = psycopg2.connect(
-                host="database",  # Docker service name
+                host="localhost",  # Docker service name
                 port="5432",
                 database="lab_db",
                 user="lab_user",
@@ -76,7 +76,9 @@ def _batch_search_database(requested_collection):
     # Execute batch database query
     query = """
         SELECT * FROM plasmids 
-        WHERE (lot, sub_lot) = ANY(%s)
+        WHERE (lot, sub_lot) IN (
+            SELECT UNNEST(%s), UNNEST(%s)
+        )
     """
 
     results = execute_sql(params, query=query)
@@ -293,8 +295,11 @@ def execute_sql(params=None, function_name='find_plasmids', query=None):
 # Testing
 #----------------------------
 
+if __name__ == "__main__":
+    result = batch_search_plasmids("1170-8  ,,4391-1,4396-1")
+    print(result)
 
-
+"""
 if __name__ == "__main__":
     print("Testing plasmid search...")
 
@@ -320,6 +325,6 @@ if __name__ == "__main__":
     print("\n=== Test 4: Different Spacing ===")
     result4 = batch_search_plasmids("5317-1,5332-2 47734-1")
     print(f"Input: '5317-1,5332-2 4773-1'")
-    print(f"Result: {result4}")
-
+    print(result4)
     print("\nTesting complete!")
+"""

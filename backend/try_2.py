@@ -220,7 +220,10 @@ class PlasmidCollection:
 
         for plasmid in self.plasmids:
             if plasmid.bag:  # Only group if plasmid has bag (from database)
-                bag_groups[plasmid.bag].append(str(plasmid))
+                volumes = (plasmid.volume_1, plasmid.volume_2)
+                bag_groups[plasmid.bag].append(str(f"{plasmid} : {volumes}"))
+            else:
+                raise ValueError("seems something doesnt have a bag! fix this")
 
         return dict(sorted(bag_groups.items(), key=lambda x: self._natural_sort_key(x[0])))
 
