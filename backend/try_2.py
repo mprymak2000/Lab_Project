@@ -5,7 +5,7 @@ import re
 class Plasmid:
     def __init__(self, lot, sublot, bag, volume_1, volume_2=None, notes=None):
         self._lot, self._sublot = self._validate_plasmid_format(lot=lot, sublot=sublot)
-        self._bag = bag
+        self.bag = self._validate_bag(bag)
         self.volume_1 = self._validate_volume(volume_1)
         self.volume_2 = self._validate_volume(volume_2, required=False)
         self.notes = notes
@@ -30,7 +30,7 @@ class Plasmid:
         instance = cls.__new__(cls)
 
         instance._lot, instance._sublot = cls._validate_plasmid_format(lot=lot, sublot=sublot)
-        instance._bag = bag
+        instance.bag = instance._validate_bag(bag)
         instance.volume_1 = cls._validate_volume(volume_1, required=False)  # Flexible
         instance.volume_2 = cls._validate_volume(volume_2, required=False)
         if instance.volume_1 is None and instance.volume_2 is not None:
@@ -55,7 +55,7 @@ class Plasmid:
         """Create a temporary plasmid object with only lot and sublot"""
         instance = cls.__new__(cls)
         instance._lot, instance._sublot = cls._validate_plasmid_format(lot=lot, sublot=sublot)
-        instance._bag = None
+        instance.bag = None
         instance.volume_1 = None
         instance.volume_2 = None
         instance.notes = None
@@ -84,10 +84,6 @@ class Plasmid:
     @property
     def sublot(self):
         return self._sublot
-
-    @property
-    def bag(self):
-        return self._bag
 
 
     # Some setter functions with input validation: volume_1, volume_2, notes
@@ -145,6 +141,10 @@ class Plasmid:
         else:
             self.notes += f"\n{notes.strip()}"
 
+    def update_bag(self, bag):
+        self.bag = self._validate_bag(bag)
+    #todo: add bag validation
+
     @staticmethod
     def _validate_plasmid_format (lot, sublot):
         """Validate lot and sublot - accept string or int"""
@@ -174,6 +174,10 @@ class Plasmid:
             raise ValueError("Volume must be positive")
         return volume
 
+    @staticmethod
+    #todo: work on bag validation
+    def _validate_bag(bag):
+        return bag
 
 class PlasmidCollection:
     def __init__(self, plasmids=None):

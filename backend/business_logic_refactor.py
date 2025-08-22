@@ -158,12 +158,12 @@ def delete_plasmid(lot, sublot):
     print(f"✅ Deleted plasmid {temp_plasmid.lot}-{temp_plasmid.sublot} from database")
     return result
 
-def modify_plasmid_by_string(full_plasmid, volume_1=None, volume_2=None, notes=None):
+def modify_plasmid_by_string(full_plasmid, volume_1=None, volume_2=None, notes=None, bag=None):
     plasmid = Plasmid.temp_plasmid_from_full(full_plasmid)
-    modify_plasmid(plasmid.lot, plasmid.sublot, volume_1, volume_2, notes)
+    modify_plasmid(plasmid.lot, plasmid.sublot, volume_1, volume_2, notes, bag)
 
 # todo: pass just plasmid here in future, if input will be passed as full string
-def modify_plasmid(lot, sublot, volume_1=None, volume_2=None, notes=None):
+def modify_plasmid(lot, sublot, volume_1=None, volume_2=None, notes=None, bag=None):
     """Modifies an existing plasmid record by updating volumes or notes."""
     print(f"Modifying plasmid {lot}-{sublot} in database")
 
@@ -176,6 +176,9 @@ def modify_plasmid(lot, sublot, volume_1=None, volume_2=None, notes=None):
     if existing_plasmid is None:
         raise ValueError(f"Plasmid {temp_plasmid.lot}-{temp_plasmid.sublot} not found in database")
 
+    if volume_1 is None and volume_2 is None and notes is None and bag is None:
+        raise ValueError("no bag, volume, notes passed.")
+
     # Step 3: update plasmid record with new volumes/notes
     if volume_1 is not None:
         existing_plasmid.update_volume_1(volume_1)
@@ -183,9 +186,13 @@ def modify_plasmid(lot, sublot, volume_1=None, volume_2=None, notes=None):
         existing_plasmid.update_volume_2(volume_2)
     if notes is not None:
         existing_plasmid.add_notes(notes)
+    if bag is not None:
+        #todo: add bag validation in business logic
+        existing_plasmid.update_bag(bag)
 
     return _update_plasmid_record(existing_plasmid)
 
+#todo: return what was changed
 def _insert_plasmid_record(plasmid):
     print(f"Inserting plasmid {plasmid.lot}-{plasmid.sublot} into database")
     """Insert plasmid into database"""
@@ -196,11 +203,12 @@ def _insert_plasmid_record(plasmid):
     params = (plasmid.bag, plasmid.lot, plasmid.sublot,
               plasmid.volume_1, plasmid.volume_2, plasmid.notes)
 
-    results = execute_sql(params, query=query)
+    execute_sql(params, query=query)
     print(f"✅ Created new plasmid {plasmid.lot}-{plasmid.sublot} in {plasmid.bag}")
-    return results
+    return {'lot': plasmid.lot, 'sublot': plasmid.sublot, 'bag': plasmid.bag}
 
 
+#return what was changed. maybe use map of field:booleans to keep track
 def _update_plasmid_record(plasmid):
     """Update plasmid record by adding, modifying or deleting volumes."""
     print(f"Updating plasmid {plasmid.lot}-{plasmid.sublot} in database")
@@ -211,10 +219,20 @@ def _update_plasmid_record(plasmid):
         """
     params = (plasmid.volume_1, plasmid.volume_2, plasmid.notes, plasmid.lot, plasmid.sublot)
 
-    result = execute_sql(params, query=query)
-    print(f"✅ Updated plasmid {plasmid.lot}-{plasmid.sublot} with volumes {plasmid.volume_1}, {plasmid.volume_2} and notes '{plasmid.notes}'")
-    return result
+    execute_sql(params, query=query)
+    print(f"✅ Updated plasmid {plasmid.lot}-{plasmid.sublot}")
+    parts = [f"Volume_1: {plasmid.volume_1}"]
+    if plasmid.volume_2 is not None:
+        parts.append(f"Volume_2: {plasmid.volume_2}")
+    if plasmid.notes:
+        parts.append(f"notes: '{plasmid.notes}'")
+    print(f"{', '.join(parts)}")
 
+    return {'lot': plasmid.lot, 'sublot': plasmid.sublot, 'bag': plasmid.bag}
+
+
+#todo: fix this. this simply creates a new bag for each added plasmid.
+# need to have it analyze and choose a good place
 def _generate_bag_number():
     print(f"Generating new bag number")
     """Find the highest bag number and increment"""
@@ -296,8 +314,8 @@ def execute_sql(params=None, function_name='find_plasmids', query=None):
 #----------------------------
 
 if __name__ == "__main__":
-    result = batch_search_plasmids("1170-8  ,,4391-1,4396-1")
-    print(result)
+    test = batch_search_plasmids("1170-8  ,,4391-1,4396-1")
+    print(test)
 
 """
 if __name__ == "__main__":
