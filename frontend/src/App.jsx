@@ -4,6 +4,81 @@ import BagCards from './BagCards'
 const App = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null)
+
+    const handleSearch = async () => {
+        if (!searchTerm.trim()) {
+            setError("Please enter plasmid IDs to search");
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await fetch(`${API_BASE_URL}/api/search`, {
+                method: 'POST',
+                headers: {'Content-Type' : 'application/json',},
+                body: JSON.stringify({plasmid_collection: searchTerm})
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Search failed')
+            }
+
+            setResults(data.results);
+
+        }
+
+        catch (err) {
+            setError(err.message);
+            setResults(null);
+        } finally { setLoading(false); }
+    };
+
+    const renderResults = () => {
+        if (!results) return null;
+        return (
+            <div className="mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                    Search Results: {results.found}
+                </h3>
+
+                {results.bags && Object.keys(results.bags).length > 0 ? (
+                    <div className="space-y-4">
+                        {Object.entries(results.bags).map(([bagName, plasmids]) => (
+                            <div key={bagName} className="bg-white border rounded-lg overflow-hidden shadow">
+                                <div className="bg-blue-50 px-4 py-2 border-b">
+                                    <h4 className="font-medium text-blue-800">Bag: {bagName}</h4>
+                                </div>
+                                <div className="p-4">
+                                    <ul className="space-y-2">
+                                        {plasmids.map((plasmid, index) => (
+                                            <li key={index} className="text-sm font-mono bg-gray-50 p-2 rounded">
+                                                {plasmid}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-600">No plasmids found.</p>
+                )}
+
+                {results.not_found && results.not_found.length > 0 && (
+                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                        <h4 className="font-medium text-yellow-800 mb-2">Not Found:</h4>
+                        <p className="text-yellow-700">{results.not_found.join(', ')}</p>
+                    </div>
+                )}
+            </div>
+        );
+    };
 
     return (
         <div className="min-h-screen bg-gray-50">

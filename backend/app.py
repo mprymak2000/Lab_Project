@@ -22,7 +22,7 @@ def search_records():
         plasmid_collection = data['plasmid_collection'].strip()
 
         results = batch_search_plasmids(plasmid_collection)
-        print(f"DEBUG: Raw results = {results}")  # Add this line
+     #   print(f"DEBUG: Raw results = {results}")  # Add this line
 
         return jsonify({
             "success": True,
