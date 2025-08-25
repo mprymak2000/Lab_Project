@@ -126,5 +126,5 @@ def bad_request(error):
     return jsonify({"error": "Bad request"}), 400
 
 if __name__ == '__main__':
-    print("Server starting on localhost:5000")
+    print("Server starting on port 5000")
     app.run(host='0.0.0.0', port=5000, debug=True)

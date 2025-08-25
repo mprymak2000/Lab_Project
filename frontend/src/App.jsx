@@ -30,6 +30,7 @@ const App = () => {
                 throw new Error(data.error || 'Search failed')
             }
 
+            console.log("API Response:", data.result);
             setResults(data.result);
 
         }
@@ -41,12 +42,16 @@ const App = () => {
     };
 
     const renderResults = () => {
+        console.log("renderResults called, results:", results);
         if (!results) return null;
         return (
             <div className="mt-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">
                     Search Results: {results.found}
                 </h3>
+                <pre style={{background: '#f5f5f5', padding: '10px', fontSize: '12px'}}>
+                    DEBUG: {JSON.stringify(results, null, 2)}
+                </pre>
 
                 {results.bags && Object.keys(results.bags).length > 0 ? (
                     <div className="space-y-4">
@@ -99,7 +104,7 @@ const App = () => {
                             />
                         </div>
                         <button
-                            onClick={() => {handleSearch}
+                            onClick={handleSearch}
                             disabled={loading || !searchTerm.trim()}
                             className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
@@ -138,9 +143,12 @@ const App = () => {
                     </div>
 
                     {/* Search Results */}
-                    {results && (
-                        <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
-                            <p className="text-green-800">{results}</p>
+                    {renderResults()}
+
+                    {/* Error Display */}
+                    {error && (
+                        <div className="mt-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-red-800">{error}</p>
                         </div>
                     )}
                 </div>

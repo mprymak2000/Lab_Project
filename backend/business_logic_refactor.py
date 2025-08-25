@@ -29,7 +29,7 @@ class PlasmidDatabase:
         if self._connection is None or self._connection.closed:
             # TODO: Use environment variables for connection params
             self._connection = psycopg2.connect(
-                host="localhost",  # Docker service name
+                host="database",  # Docker service name
                 port="5432",
                 database="lab_db",
                 user="lab_user",
