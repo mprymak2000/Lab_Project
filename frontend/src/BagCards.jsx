@@ -1,20 +1,16 @@
-const BagCards = () => {
-  const bagData = {
-    'C20': [
-      { id: '5314-1', volume: '20.0mL' },
-      { id: '5314-2', volume: '18.0mL' }
-    ],
-    'C19': [
-      { id: '5317-1', volume: '6.0mL' },
-      { id: '5332-2', volume: '8.0mL' }
-    ],
-    'C18': [
-      { id: '5182-1', volume: '27.0mL' },
-      { id: '5231-1', volume: '18.0mL' }
-    ]
-  };
+import {useEffect} from "react";
 
-  return (
+const BagCards = () => {
+
+    const [bagData, setBagData] = useState({});
+
+    useEffect(() => {
+        fetch('http://localhost:5000/api/recent-bags')
+        .then(res => res.json())
+        .then(data => setBagData(data));
+    }, []);
+
+    return (
     <>
       {Object.entries(bagData).map(([bagName, plasmids]) => (
         <div key={bagName} className="bg-white p-4 rounded-lg shadow border">

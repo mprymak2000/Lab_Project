@@ -6,6 +6,7 @@ const App = () => {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null)
+    const API_BASE_URL = 'http://localhost:5000'
 
     const handleSearch = async () => {
         if (!searchTerm.trim()) {
@@ -29,7 +30,7 @@ const App = () => {
                 throw new Error(data.error || 'Search failed')
             }
 
-            setResults(data.results);
+            setResults(data.result);
 
         }
 
@@ -98,8 +99,9 @@ const App = () => {
                             />
                         </div>
                         <button
-                            onClick={() => setResults(`Searching for: ${searchTerm}`)}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                            onClick={() => {handleSearch}
+                            disabled={loading || !searchTerm.trim()}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
                         >
                         Search
                         </button>
