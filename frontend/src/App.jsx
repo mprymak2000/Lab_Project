@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import BagCards from './BagCards'
+import Sidebar from './Sidebar'
+import AddPlasmidModal from './AddPlasmidModal'
 
 const App = () => {
     const [searchTerm, setSearchTerm] = useState('');
@@ -7,6 +9,8 @@ const App = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null)
     const API_BASE_URL = 'http://localhost:5000'
+    const [sideBarOpen, setSideBarOpen] = useState(true);
+    const [showAddModal, setShowAddModal] = useState(false);
 
     const handleSearch = async () => {
         if (!searchTerm.trim()) {
@@ -17,32 +21,54 @@ const App = () => {
         setLoading(true);
         setError(null);
 
+        // Commented out API call for now - will add back later
+        // try {
+        //     const response = await fetch(`${API_BASE_URL}/api/search`, {
+        //         method: 'POST',
+        //         headers: {'Content-Type' : 'application/json',},
+        //         body: JSON.stringify({plasmid_collection: searchTerm})
+        //     });
+
+        //     const data = await response.json();
+
+        //     if (!response.ok) {
+        //         throw new Error(data.error || 'Search failed')
+        //     }
+
+        //     console.log("API Response:", data.result);
+        //     setResults(data.result);
+
+        // }
+
+        // catch (err) {
+        //     setError(err.message);
+        //     setResults(null);
+        // } finally { setLoading(false); }
+
+        // Mock search results for development
         try {
-            const response = await fetch(`${API_BASE_URL}/api/search`, {
-                method: 'POST',
-                headers: {'Content-Type' : 'application/json',},
-                body: JSON.stringify({plasmid_collection: searchTerm})
-            });
+            await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
+            
+            const mockResults = {
+                found: `Found plasmids matching: ${searchTerm}`,
+                bags: {
+                    'A1': ['1247-3', '2891-7'],
+                    'C3': ['2156-8', '1672-19'],
+                    'D4': ['4567-11']
+                },
+                not_found: []
+            };
 
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Search failed')
-            }
-
-            console.log("API Response:", data.result);
-            setResults(data.result);
-
-        }
-
-        catch (err) {
-            setError(err.message);
+            setResults(mockResults);
+        } catch (err) {
+            setError("Search temporarily unavailable");
             setResults(null);
-        } finally { setLoading(false); }
+        } finally { 
+            setLoading(false); 
+        }
     };
 
     const renderResults = () => {
-        console.log("renderResults called, results:", results);
         if (!results) return null;
         return (
             <div className="mt-6">
@@ -63,7 +89,7 @@ const App = () => {
                                 <div className="p-4">
                                     <ul className="space-y-2">
                                         {plasmids.map((plasmid, index) => (
-                                            <li key={index} className="text-sm font-mono bg-gray-50 p-2 rounded">
+                                            <li key={index} className="text-sm font-mono bg-blue-500 p-2 rounded">
                                                 {plasmid}
                                             </li>
                                         ))}
@@ -93,6 +119,16 @@ const App = () => {
             <div className="bg-white border-b border-gray-200 px-6 py-4">
                 <div className="max-w-7xl mx-auto">
                     <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => setSideBarOpen(prevState => !prevState)}
+                            className="p-2 rounded-lg hover:bg-gray-100"
+                        >
+                            <div className="flex flex-col space-y-1">
+                                <div className="w-5 h-0.5 bg-gray-600"></div>
+                                <div className="w-5 h-0.5 bg-gray-600"></div>
+                                <div className="w-5 h-0.5 bg-gray-600"></div>
+                            </div>
+                        </button>
                         <h1 className="text-xl font-bold text-gray-800">🧬 Lab Plasmid Management</h1>
                         <div className="flex-1 max-w-2xl">
                             <input
@@ -116,26 +152,12 @@ const App = () => {
 
             {/* Main Content Area */}
             <div className="max-w-7xl mx-auto flex">
-
-                {/* Sidebar */}
-                <div className="w-64 bg-white border-r border-gray-200 min-h-screen p-4">
-                    <nav className="space-y-2">
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg bg-blue-50 text-blue-700">
-                            🧬 Search
-                        </a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100">
-                            ➕ Add Plasmid
-                        </a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100">
-                            📦 All Bags
-                        </a>
-                        <a href="#" className="flex items-center gap-3 px-3 py-2 text-gray-700 rounded-lg hover:bg-gray-100">
-                            📊 Statistics
-                        </a>
-                    </nav>
-                </div>
-
+                <Sidebar
+                    isOpen={sideBarOpen}
+                    onAddPlasmid={() => setShowAddModal(true)}
+                />
                 {/* Main content */}
+
                 <div className="flex-1 p-6">
                     <h2 className="text-xl font-semibold text-gray-800 mb-4"> Recent Bags </h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -153,6 +175,12 @@ const App = () => {
                     )}
                 </div>
             </div>
+
+            {/* Modal Overlay */}
+            <AddPlasmidModal
+                isOpen={showAddModal}
+                onClose={() => setShowAddModal(false)}
+            />
         </div>
     );
 };
