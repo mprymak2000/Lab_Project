@@ -1,39 +1,32 @@
 import React, {useRef, useState} from 'react'
 import PlasmidRecordInput from "./PlasmidRecordInput.jsx";
+import {PlasmidRecord} from "./utils/PlasmidRecord.js";
 
 //TODO: same record validation (lot-sublot no duplicates).
 //TODO: (OPTIONAL): vol2 only turns to volume 1; pass up field errors
 
 const AddPlasmidModal = ({isOpen, onClose}) => {
 
-    const [recordsData, setRecordsData] = useState([{lot: '', sublot: '', vol1: '', vol2: '', notes: ''}]);
-    const [recordValidations, setRecordValidations] = useState([false]);
+    const [recordsData, setRecordsData] = useState(
+        [new PlasmidRecord({lot: '', sublot: '', vol1: ''})]);
+//    const [recordValidations, setRecordValidations] = useState([false]);
 
     const addRecord = () => {
-        setRecordsData([...recordsData, {lot: '', sublot: '', vol1: '', vol2: '', notes: ''}])
-        setRecordValidations([...recordValidations, false]);
+        setRecordsData([...recordsData, new PlasmidRecord({lot: '', sublot: '', vol1: ''})])
     }
 
     const deleteRecord = (recordIndex) => {
         const newRecords = recordsData.slice(0, recordIndex).concat(recordsData.slice(recordIndex + 1));
-        const newValidations = recordValidations.slice(0, recordIndex).concat(recordValidations.slice(recordIndex + 1));
         setRecordsData(newRecords);
-        setRecordValidations(newValidations);
     }
 
-    const updateRecord = (recordIndex, field, value) => {
+    const updateRecord = (recordIndex, updatedRecord) => {
         const newRecords = [...recordsData];
-        newRecords[recordIndex][field] = value;
+        newRecords[recordIndex] = updatedRecord;
         setRecordsData(newRecords);
     }
 
-    const handleRecordValidation = (recordIndex, isValid) => {
-        const newValidations = [...recordValidations];
-        newValidations[recordIndex] = isValid;
-        setRecordValidations(newValidations);
-    }
-
-    const allRecordsValid = recordValidations.every(isValid => isValid);
+    const allRecordsValid = recordsData.every(record => record.isValid());
     
     const handleCancel = () => {
         if (window.confirm("Are you sure you want to cancel? All changes will be lost.")) {
@@ -42,23 +35,25 @@ const AddPlasmidModal = ({isOpen, onClose}) => {
     }
     
     const handleSave = () => {
-        console.log("recordValidations:", recordValidations);
+        recordsData.every(record => console.log(record.isValid()));
         console.log("allRecordsValid:", allRecordsValid);
-        if (recordsData.length === 0)
+        if (recordsData.length === 0) {
             console.log("There are no records to save");
-        else if (!allRecordsValid) {
+            return;
+        } else if (!allRecordsValid) {
             console.log("One or more records contains unwanted input or has empty fields");
-            recordValidations.forEach((isValid, index) => {
-                if (!isValid) {
+            recordsData.forEach((record, index) => {
+                if (!record.isValid()) {
                     console.log(`Record ${index + 1} is invalid`);
                 }
             });
+            return;
         }
 
         if (window.confirm("Are you sure you want to save these records?")) {
-        // TODO: Implement save logic
-        console.log("you did it you son of a bitch!")
-        onClose();
+            // TODO: Implement save logic
+            console.log("you did it you son of a bitch!")
+            onClose();
         }
     }
 
@@ -82,8 +77,7 @@ const AddPlasmidModal = ({isOpen, onClose}) => {
                         <PlasmidRecordInput
                             key={index}
                             data = {record}
-                            onDataChange = {(field, value) => updateRecord(index, field, value)}
-                            onValidationChange = {(isValid) => handleRecordValidation(index, isValid)}
+                            onDataChange = {(updatedRecord) => updateRecord(index, updatedRecord)}
                             onDelete = {() => deleteRecord(index)}
                         />
                     ))}

@@ -1,4 +1,3 @@
-
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -27,14 +26,19 @@ class PlasmidDatabase:
     def connect(self):
         """Get or create database connection"""
         if self._connection is None or self._connection.closed:
-            # TODO: Use environment variables for connection params
-            self._connection = psycopg2.connect(
-                host="database",  # Docker service name
-                port="5432",
-                database="lab_db",
-                user="lab_user",
-                password="lab_pass"
-            )
+            import os
+            database_url = os.getenv('DATABASE_URL')
+            if database_url:
+                self._connection = psycopg2.connect(database_url)
+            else:
+                # Fallback for local development
+                self._connection = psycopg2.connect(
+                    host="database",  # Docker service name
+                    port="5432",
+                    database="lab_db",
+                    user="lab_user",
+                    password="lab_pass"
+                )
         return self._connection
 
     def close(self):
@@ -99,6 +103,38 @@ def _batch_search_database(requested_collection):
     # Return as PlasmidCollection
     return PlasmidCollection(found_plasmids)
 
+def get_all_plasmids():
+    """Get all plasmids from database"""
+    query = "SELECT * FROM plasmids ORDER BY bag, lot, sub_lot LIMIT 1"
+    results = execute_sql(query=query)
+
+    try:
+        query = "SELECT * FROM plasmids ORDER BY bag, lot, sub_lot"
+        results = execute_sql(query=query)
+
+        all_plasmids = []
+        for i, row in enumerate(results):
+            try:
+                plasmid = Plasmid.from_database(
+                    lot=row['lot'],
+                    sublot=row['sub_lot'],
+                    bag=row['bag'],
+                    volume_1=row['volume_1'],
+                    volume_2=row['volume_2'],
+                    notes=row.get('notes')
+                )
+                all_plasmids.append(plasmid)
+                # Removed limit for testing all records
+                # if i >= 2:  # Only process first 3 rows for debugging
+                #     break
+            except ValueError as e:
+                return {'error': str(e)}
+
+        return PlasmidCollection(all_plasmids).group_by_bags()
+
+    except Exception as e:
+        return {'error': str(e)}
+
 def add_plasmid_by_string(full_plasmid, volume_1, volume_2=None, notes=None):
     plasmid = Plasmid.temp_plasmid_from_full(full_plasmid)
     add_plasmid(plasmid.lot, plasmid.sublot, volume_1, volume_2, notes)
@@ -119,7 +155,7 @@ def add_plasmid(lot, sublot, volume_1, volume_2=None, notes=None):
         # Step 2: make a new plasmid record
         # TODO: NEED TO DETERMINE WHETHER TO ASSIGN TO EXISTING BAG OR MAKE NEW ONE
         bag = _generate_bag_number()         #generate bag number if not provided
-        plasmid = Plasmid(temp_plasmid.lot, temp_plasmid.sublot, bag=bag, volume_1=volume_1, volume_2=volume_2, notes=notes)
+        plasmid = Plasmid(temp_plasmid.lot, temp_plasmid.sublot, bag=bag, vol1=volume_1, other_volumes=volume_2, notes=notes)
 
         # Step 3: insert into the database
         return _insert_plasmid_record(plasmid)
@@ -181,9 +217,9 @@ def modify_plasmid(lot, sublot, volume_1=None, volume_2=None, notes=None, bag=No
 
     # Step 3: update plasmid record with new volumes/notes
     if volume_1 is not None:
-        existing_plasmid.update_volume_1(volume_1)
+        existing_plasmid.set_vol1(volume_1)
     if volume_2 is not None:
-        existing_plasmid.update_volume_2(volume_2)
+        existing_plasmid.set_other_volumes(volume_2)
     if notes is not None:
         existing_plasmid.add_notes(notes)
     if bag is not None:
@@ -201,7 +237,7 @@ def _insert_plasmid_record(plasmid):
         VALUES (%s, %s, %s, %s, %s, %s, NOW())
     """
     params = (plasmid.bag, plasmid.lot, plasmid.sublot,
-              plasmid.volume_1, plasmid.volume_2, plasmid.notes)
+              plasmid.vol1, plasmid.other_volumes_to_string(), plasmid.notes)
 
     execute_sql(params, query=query)
     print(f"✅ Created new plasmid {plasmid.lot}-{plasmid.sublot} in {plasmid.bag}")
@@ -217,13 +253,13 @@ def _update_plasmid_record(plasmid):
         SET volume_1 = %s, volume_2 = %s, notes = %s
         WHERE lot = %s AND sub_lot = %s
         """
-    params = (plasmid.volume_1, plasmid.volume_2, plasmid.notes, plasmid.lot, plasmid.sublot)
+    params = (plasmid.vol1, plasmid.other_volumes_to_string(), plasmid.notes, plasmid.lot, plasmid.sublot)
 
     execute_sql(params, query=query)
     print(f"✅ Updated plasmid {plasmid.lot}-{plasmid.sublot}")
-    parts = [f"Volume_1: {plasmid.volume_1}"]
-    if plasmid.volume_2 is not None:
-        parts.append(f"Volume_2: {plasmid.volume_2}")
+    parts = [f"Vol1: {plasmid.vol1}"]
+    if plasmid.other_volumes:
+        parts.append(f"Other volumes: {plasmid.other_volumes_to_string()}")
     if plasmid.notes:
         parts.append(f"notes: '{plasmid.notes}'")
     print(f"{', '.join(parts)}")

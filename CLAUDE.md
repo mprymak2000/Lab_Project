@@ -58,7 +58,7 @@ The Flask backend exposes these REST endpoints:
 - `backend/business_logic_refactor.py` - Core business logic and database operations
 - `backend/app.py` - Flask API server with route definitions
 - `frontend/src/App.jsx` - Main React component with search interface
-- `frontend/src/BagCards.jsx` - Component for displaying bag information
+- `frontend/src/BagCard.jsx` - Component for displaying bag information
 - `Docker-Compose.yml` - Infrastructure configuration
 - `Data/` - Contains SQL scripts and CSV data files
 

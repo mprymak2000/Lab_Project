@@ -3,11 +3,11 @@ import re
 
 
 class Plasmid:
-    def __init__(self, lot, sublot, bag, volume_1, volume_2=None, notes=None):
+    def __init__(self, lot, sublot, bag, vol1, other_volumes=None, notes=None):
         self._lot, self._sublot = self._validate_plasmid_format(lot=lot, sublot=sublot)
         self.bag = self._validate_bag(bag)
-        self.volume_1 = self._validate_volume(volume_1)
-        self.volume_2 = self._validate_volume(volume_2, required=False)
+        self._vol1 = self._validate_single_volume(vol1)
+        self._other_volumes = self._validate_multiple_volumes(other_volumes)
         self.notes = notes
 
     @classmethod
@@ -24,18 +24,26 @@ class Plasmid:
 
     @classmethod
     def from_database(cls, lot, sublot, bag, volume_1=None, volume_2=None, notes=None):
-        """Load plassmid from database values. Fliexble with volumes"""
+        """Load plasmid from database values. Flexible with volumes"""
 
         # Manual initialization with flexible validation
         instance = cls.__new__(cls)
 
         instance._lot, instance._sublot = cls._validate_plasmid_format(lot=lot, sublot=sublot)
         instance.bag = instance._validate_bag(bag)
-        instance.volume_1 = cls._validate_volume(volume_1, required=False)  # Flexible
-        instance.volume_2 = cls._validate_volume(volume_2, required=False)
-        if instance.volume_1 is None and instance.volume_2 is not None:
-            instance.volume_1 = instance.volume_2
-            instance.volume_2 = None
+        
+        # Handle vol1: try volume_1 first, then fallback to first value from volume_2
+        vol1_value = cls._validate_single_volume(volume_1, required=False)
+        other_volumes_list = cls._validate_multiple_volumes(volume_2)
+        
+        if vol1_value is None and other_volumes_list:
+            # If vol1 is empty but volume_2 has data, move first volume to vol1
+            instance._vol1 = other_volumes_list.pop(0)  # Take first volume
+            instance._other_volumes = other_volumes_list  # Remaining volumes
+        else:
+            instance._vol1 = vol1_value  # This can be None
+            instance._other_volumes = other_volumes_list  # This can be []
+            
         instance.notes = notes
 
         return instance
@@ -56,8 +64,8 @@ class Plasmid:
         instance = cls.__new__(cls)
         instance._lot, instance._sublot = cls._validate_plasmid_format(lot=lot, sublot=sublot)
         instance.bag = None
-        instance.volume_1 = None
-        instance.volume_2 = None
+        instance._vol1 = None
+        instance._other_volumes = None
         instance.notes = None
         return instance
 
@@ -65,7 +73,7 @@ class Plasmid:
         return f"{self.lot}-{self.sublot}"
 
     def __repr__(self):
-        return f"Plasmid(lot={self.lot}, sublot={self.sublot}, bag={self.bag}, volume_1={self.volume_1}, volume_2={self.volume_2}, notes={self.notes})"
+        return f"Plasmid(lot={self.lot}, sublot={self.sublot}, bag={self.bag}, vol1={self.vol1}, other_volumes={self.other_volumes}, notes={self.notes})"
 
     def __eq__(self, other):
         if not isinstance(other, Plasmid):
@@ -75,7 +83,7 @@ class Plasmid:
     def __hash__(self):
         return hash((self.lot, self.sublot))
 
-    # Reading properties for lot, sublot, and bag
+    # Reading properties for lot, sublot, volumes and bag
     # Cannot change them
     @property
     def lot(self):
@@ -85,52 +93,58 @@ class Plasmid:
     def sublot(self):
         return self._sublot
 
+    @property
+    def vol1(self):
+        return self._vol1
 
-    # Some setter functions with input validation: volume_1, volume_2, notes
+    @property
+    def other_volumes(self):
+        return self._other_volumes
+
+    # Volume management methods with validation
     def add_volume(self, volume):
-        if self.volume_1 is not None and self.volume_2 is not None:
-            raise ValueError("Both volumes already set. Use update_volume_2 to change it.")
-        validated_volume = self._validate_volume(volume, required=True)
-        if self.volume_1 is not None:
-            self.volume_2 = validated_volume
-        else:
-            self.volume_2 = validated_volume
+        """Add a volume to other_volumes list"""
+        validated_volume = self._validate_single_volume(volume, required=True)
+        if self._other_volumes is None:
+            self._other_volumes = []
+        self._other_volumes.append(validated_volume)
 
-    #only delete a volume if another exists
-    def delete_volume_1(self):
-        if self.volume_1 is None and self.volume_2 is None:
+    def set_vol1(self, volume):
+        """Set the primary volume with validation (allows overwriting)"""
+        self._vol1 = self._validate_single_volume(volume, required=True)
+
+    def set_other_volumes(self, volumes_input):
+        """Set other volumes from string or list with validation"""
+        self._other_volumes = self._validate_multiple_volumes(volumes_input)
+
+    def delete_vol1(self):
+        """Delete vol1, moving first other_volume to vol1 if available"""
+        if self._vol1 is None and (not self._other_volumes or len(self._other_volumes) == 0):
             raise ValueError("If no volumes exist, please delete the whole plasmid record")
-        if self.volume_2 is not None:
-            self.volume_1 = self.volume_2
-            self.volume_2 = None
+        
+        if self._other_volumes and len(self._other_volumes) > 0:
+            self._vol1 = self._other_volumes.pop(0)
         else:
-            self.volume_1 = None
+            self._vol1 = None
             print(f"Volume 1 is deleted. If no samples exist, please delete the whole plasmid record")
 
-    def delete_volume_2(self):
-        if self.volume_2 is None:
-            raise ValueError("No volume 2 exists")
-        self.volume_2 = None
+    #todo: not quite sure about this yet
+    def remove_other_volume(self, index):
+        """Remove a specific volume from other_volumes by index"""
+        if not self._other_volumes or index >= len(self._other_volumes):
+            raise ValueError(f"No volume at index {index}")
+        self._other_volumes.pop(index)
 
-    def update_volume_1(self, volume):
-        self.update_volume(volume, 1)
+    def clear_all_volumes(self):
+        """Clear all volumes"""
+        self._vol1 = None
+        self._other_volumes = None
 
-    def update_volume_2(self, volume):
-        self.update_volume(volume, 2)
-
-    def update_volume(self, volume, which_volume):
-        if which_volume != 1 and which_volume != 2:
-            raise ValueError("You can update either volume 1 or volume 2")
-
-        validated_volume = self._validate_volume(volume, True)
-
-        if which_volume == 1:
-            self.volume_1 = validated_volume
-        else:
-            if self.volume_1 is None:
-                self.volume_1 = validated_volume
-            else:
-                self.volume_2 = validated_volume
+    def other_volumes_to_string(self):
+        """Convert other_volumes to database string format"""
+        if not self._other_volumes:
+            return None
+        return ', '.join(map(str, self._other_volumes))
 
     def update_notes(self, notes):
         self.notes = notes.strip()
@@ -154,25 +168,59 @@ class Plasmid:
         except (ValueError, TypeError):
             raise ValueError("Lot and sublot must be integers")
 
-        if lot < 0 or sublot < 1:
-            raise ValueError("Lot must be non-negative and sublot must be positive")
+        if lot < 0 or sublot < 0:
+            raise ValueError("Lot and sublot must be non-negative")
 
         print(f"validated!")
         return lot, sublot
 
     @staticmethod
-    def _validate_volume (volume_input, required=True):
-        if volume_input is None:
+    def _validate_single_volume(volume_input, required=True):
+        """Validate a single volume - first column (vol1)"""
+        if volume_input is None or (isinstance(volume_input, str) and volume_input.strip() == ""):
             if required:
                 raise ValueError("Volume (mL) is required")
             return None
+            
         try:
-            volume = float(volume_input)
+            # Handle Decimal objects from PostgreSQL
+            from decimal import Decimal
+            if isinstance(volume_input, Decimal):
+                volume = float(volume_input)
+            else:
+                volume = float(volume_input)
+            if volume <= 0:
+                raise ValueError("Volume must be positive")
+            return volume
         except (ValueError, TypeError):
-            raise ValueError("Volume must be a number")
-        if volume <= 0:
-            raise ValueError("Volume must be positive")
-        return volume
+            raise ValueError(f"Volume must be a number, got: '{volume_input}' (type: {type(volume_input)})")
+
+    #TODO: check the below. might have issues
+    @staticmethod
+    def _validate_multiple_volumes(volume_input):
+        """Parse comma-separated volumes like '9.0, 4.0, 8.0' from second column"""
+        if volume_input is None or (isinstance(volume_input, str) and volume_input.strip() == ""):
+            return []
+        
+        volume_str = str(volume_input).strip()
+        
+        # Split by commas, semicolons, pipes, or spaces and extract valid numbers
+        parts = re.split(r'[,;|\s]+', volume_str)
+        volumes = []
+        
+        for part in parts:
+            # Extract numbers from each part (handles things like '3.0(UNDILUTED)')
+            numbers = re.findall(r'\d+\.?\d*', part.strip())
+            for num_str in numbers:
+                try:
+                    volume = float(num_str)
+                    if volume > 0:
+                        volumes.append(volume)
+                except ValueError:
+                    print(f"invalid volume {num_str}. Not added.")
+                    continue  # Skip invalid numbers
+                    
+        return volumes
 
     @staticmethod
     #todo: work on bag validation
@@ -224,8 +272,14 @@ class PlasmidCollection:
 
         for plasmid in self.plasmids:
             if plasmid.bag:  # Only group if plasmid has bag (from database)
-                volumes = (plasmid.volume_1, plasmid.volume_2)
-                bag_groups[plasmid.bag].append(str(f"{plasmid} : {volumes}"))
+                bag_groups[plasmid.bag].append({
+                    'lot': plasmid.lot,
+                    'sublot': plasmid.sublot,
+                    'vol1': plasmid.vol1 or '',
+                    'vol2': ', '.join(map(str, plasmid.other_volumes)) if plasmid.other_volumes else '',
+                    'notes': plasmid.notes or '',
+                    'id': plasmid.__str__()
+                })
             else:
                 raise ValueError("seems something doesnt have a bag! fix this")
 

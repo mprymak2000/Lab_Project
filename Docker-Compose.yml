@@ -10,6 +10,7 @@ services:
     volumes:
       - lab_data:/var/lib/postgresql/data
       - ./Data:/data
+      - ./Data:/docker-entrypoint-initdb.d
 
   pgadmin:
     image: dpage/pgadmin4
@@ -26,10 +27,18 @@ services:
     depends_on:
       - database
     volumes:
-      - ./backend:/app
       - ./Data:/data
     environment:
       - DATABASE_URL=postgresql://lab_user:lab_pass@database:5432/lab_db
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000
 
 volumes:
   lab_data:

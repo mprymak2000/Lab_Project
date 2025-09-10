@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import BagCards from './BagCards'
+import AllBags from './AllBags.jsx'
 import Sidebar from './Sidebar'
 import AddPlasmidModal from './AddPlasmidModal'
 
@@ -8,9 +8,10 @@ const App = () => {
     const [results, setResults] = useState(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null)
-    const API_BASE_URL = 'http://localhost:5000'
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
     const [sideBarOpen, setSideBarOpen] = useState(true);
     const [showAddModal, setShowAddModal] = useState(false);
+
 
     const handleSearch = async () => {
         if (!searchTerm.trim()) {
@@ -21,51 +22,27 @@ const App = () => {
         setLoading(true);
         setError(null);
 
-        // Commented out API call for now - will add back later
-        // try {
-        //     const response = await fetch(`${API_BASE_URL}/api/search`, {
-        //         method: 'POST',
-        //         headers: {'Content-Type' : 'application/json',},
-        //         body: JSON.stringify({plasmid_collection: searchTerm})
-        //     });
-
-        //     const data = await response.json();
-
-        //     if (!response.ok) {
-        //         throw new Error(data.error || 'Search failed')
-        //     }
-
-        //     console.log("API Response:", data.result);
-        //     setResults(data.result);
-
-        // }
-
-        // catch (err) {
-        //     setError(err.message);
-        //     setResults(null);
-        // } finally { setLoading(false); }
-
-        // Mock search results for development
         try {
-            await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
-            
-            const mockResults = {
-                found: `Found plasmids matching: ${searchTerm}`,
-                bags: {
-                    'A1': ['1247-3', '2891-7'],
-                    'C3': ['2156-8', '1672-19'],
-                    'D4': ['4567-11']
-                },
-                not_found: []
-            };
+             const response = await fetch(`${API_BASE_URL}/api/search`, {
+                 method: 'POST',
+                 headers: {'Content-Type' : 'application/json',},
+                 body: JSON.stringify({plasmid_collection: searchTerm})
+             });
 
-            setResults(mockResults);
-        } catch (err) {
-            setError("Search temporarily unavailable");
-            setResults(null);
-        } finally { 
-            setLoading(false); 
+             const data = await response.json();
+
+             if (!response.ok) {
+                 throw new Error(data.error || 'Search failed')
+             }
+
+             console.log("API Response:", data.result);
+             setResults(data.result);
         }
+
+        catch (err) {
+             setError(err.message);
+             setResults(null);
+        } finally { setLoading(false); }
     };
 
     const renderResults = () => {
@@ -159,10 +136,7 @@ const App = () => {
                 {/* Main content */}
 
                 <div className="flex-1 p-6">
-                    <h2 className="text-xl font-semibold text-gray-800 mb-4"> Recent Bags </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        <BagCards />
-                    </div>
+                    <AllBags/>
 
                     {/* Search Results */}
                     {renderResults()}

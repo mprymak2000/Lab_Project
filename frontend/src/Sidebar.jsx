@@ -1,4 +1,4 @@
-import BagCards from "./BagCards.jsx";
+import BagCard from "./BagCard.jsx";
 import React, {useState} from 'react'
 
 {/* Sidebar */}

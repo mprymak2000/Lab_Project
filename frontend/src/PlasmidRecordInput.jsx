@@ -1,105 +1,69 @@
 import React, {useEffect, useRef, useState} from 'react'
+import {PlasmidRecord} from './utils/PlasmidRecord.js'
 
-const PlasmidRecordInput = ({onValidationChange, onDataChange, data, onDelete}) => {
+const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
 
     const lotRef = useRef(null);
     const sublotRef = useRef(null);
     const vol1Ref = useRef(null);
-
-
-    const [notes, setNotes] = useState('');
 
     const [sublotError, setSublotError] = useState('');
     const [lotError, setLotError] = useState('');
     const [vol1Error, setVol1Error] = useState('');
     const [vol2Error, setVol2Error] = useState('');
 
-    useEffect(() => {
-        const recordIsValid = (
-            data.lot !== "" && data.sublot !== "" && data.vol1 !== "" && !lotError && !sublotError && !vol1Error && !vol2Error
-        );
-        onValidationChange(recordIsValid);
-    }, [data.lot, data.sublot, data.vol1, data.vol2, lotError, sublotError, vol1Error, vol2Error]);
 
     const handleLotChange = (e) => {
         const value = e.target.value;
-        if (/[^a-zA-Z0-9]/.test(value)) {
-            setLotError("Lot: this field only accepts numbers (or letters)");
-            setTimeout(() => setLotError(""), 3000);
-            return;
-        }
-        if (value === "0" || /^0+/.test(value)) {
-            setLotError("Lot: this field cannot be zero or have leading zeros");
-            return;
-        } else if (value === "")
-            setLotError("Lot: this field cannot be empty");
-        else setLotError("");
-        onDataChange('lot', value);
+        const error = data.validateLot(value);
+        setLotError(error);
 
-        if (value.length === 4) {
-            sublotRef.current.focus();
-        }
+        const updatedRecord = new PlasmidRecord({...data, lot: value});
+        onDataChange(updatedRecord);
+
+        if (value.length === 4) sublotRef.current.focus();
     }
+
+
 
     const handleSublotChange = (e) => {
         const value = e.target.value;
-        if (/[^a-zA-Z0-9]/.test(value)) {
-            setSublotError("Sublot: this field only accepts numbers (or letters)");
-            setTimeout(() => setSublotError(""), 3000);
-            return;
-        }
-        if (value === "0" || /^0+/.test(value)) {
-            setSublotError("Sublot: this field cannot be zero or have leading zeros");
-            return;
-        }
-        if(value==="")
-            setSublotError("Sublot: this field cannot be empty");
-        else setSublotError("");
-        onDataChange('sublot', value);
+        const error = data.validateSublot(value);
+        setSublotError(error);
+
+        const updatedRecord = new PlasmidRecord({...data, sublot: value});
+        onDataChange(updatedRecord);
     }
 
     const handleSublotKeyDown = (e) => {
-        if (e.key === 'Backspace' && data.sublot === '')
-            lotRef.current.focus();
+        if (e.key === 'Backspace' && data.sublot === '') lotRef.current.focus();
     }
 
     const handleVol1Change = (e) => {
         const value = e.target.value;
-        if (!/^\d*\.?\d*$/.test(value) || value === '.') {
-            setVol1Error("Volume 1: this field only accepts numbers");
-            return;
-        }
-        if (value === "0" || /^0+(?!\.)/.test(value) || /^0+\.0+$/.test(value)) {
-            setVol1Error("Volume 1: this field cannot be zero or have leading zeros");
-        } else if (value === "") {
-            setVol1Error("Volume 1: this field cannot be empty");
-        } else {
-            setVol1Error("");
-        }
+        const error = data.validateVol1(value);
+        setVol1Error(error);
 
-        onDataChange('vol1', value);
+        const updatedRecord = new PlasmidRecord({...data, vol1: value});
+        onDataChange(updatedRecord);
+    }
+
+
+    const handleVol2Change = (e) => {
+        const value = e.target.value;
+        const error = data.validateVol2(value);
+        setVol2Error(error);
+
+        const updatedRecord = new PlasmidRecord({...data, vol2: value});
+        onDataChange(updatedRecord);
     }
 
     const handleVolBlur = (vol, e) => {
         const value = e.target.value;
         if (value && !value.includes('.') && /^\d+$/.test(value)) {
-            onDataChange(vol, value + '.0');
+            const updatedRecord = new PlasmidRecord({...data, [vol]: value + '.0'});
+            onDataChange(updatedRecord);
         }
-    }
-
-    const handleVol2Change = (e) => {
-        const value = e.target.value;
-        if (value !== "" && (!/^\d*\.?\d*$/.test(value) || value === '.')) {
-            setVol2Error("Volume 2: this field only accepts numbers");
-            setTimeout(() => setVol2Error(""), 3000);
-            return;
-        }
-        if (value === "0" || /^0+(?!\.)/.test(value) || /^0+\.0+$/.test(value)) {
-            setVol2Error("Volume 2: this field cannot be zero or have leading zeros");
-        } else {
-            setVol2Error("");
-        }
-        onDataChange('vol2', value);
     }
 
 
@@ -165,7 +129,10 @@ const PlasmidRecordInput = ({onValidationChange, onDataChange, data, onDelete}) 
                     className="flex-1 min-w-[150px] px-2 py-2 bg-white text-s shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none placeholder-gray-400 rounded order-2 sm:order-1"
                     placeholder="Notes: ex. Endo Free"
                     value = {data.notes}
-                    onChange = {(e) => onDataChange('notes', e.target.value)}
+                    onChange = {(e) => {
+                        const updatedRecord = new PlasmidRecord({...data, notes: e.target.value});
+                        onDataChange(updatedRecord);
+                    }}
                 />
 
 

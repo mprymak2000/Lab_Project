@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from business_logic_refactor import batch_search_plasmids, add_plasmid, modify_plasmid, delete_plasmid
+from business_logic_refactor import get_all_plasmids, batch_search_plasmids, add_plasmid, modify_plasmid, delete_plasmid
 
 app = Flask(__name__)
 CORS(app)
@@ -12,6 +12,19 @@ def health_check():
         'message': 'plasmid api is running'
     }), 200
 
+@app.route('/api/bags', methods =['GET'])
+def get_bags():
+    try:
+        bags = get_all_plasmids()
+
+        return jsonify({
+            "success": True,
+            "data": bags
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/search', methods=['POST'])
 def search_records():
     try:
@@ -22,7 +35,6 @@ def search_records():
         plasmid_collection = data['plasmid_collection'].strip()
 
         results = batch_search_plasmids(plasmid_collection)
-     #   print(f"DEBUG: Raw results = {results}")  # Add this line
 
         return jsonify({
             "success": True,
