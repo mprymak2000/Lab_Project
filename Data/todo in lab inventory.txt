@@ -1,0 +1,3 @@
+internal notes
+3711-9 duplicate in c1. put in c4
+furin 9999-0 put from c20 to c17

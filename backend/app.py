@@ -1,6 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from business_logic_refactor import get_all_plasmids, batch_search_plasmids, add_plasmid, modify_plasmid, delete_plasmid
+
+from business_logic_refactor import get_all_plasmids, find_plasmids, add_plasmid_record, modify_plasmid_record, delete_plasmid_record
+from plasmid_records import Plasmid, PlasmidCollection, SampleCollection
 
 app = Flask(__name__)
 CORS(app)
@@ -15,7 +17,7 @@ def health_check():
 @app.route('/api/bags', methods =['GET'])
 def get_bags():
     try:
-        bags = get_all_plasmids()
+        bags = get_all_plasmids().group_by_bags()
 
         return jsonify({
             "success": True,
@@ -32,13 +34,20 @@ def search_records():
         if not data or 'plasmid_collection' not in data:
             return jsonify({"error": "Missing 'plasmid_collection' field"}), 400
 
-        plasmid_collection = data['plasmid_collection'].strip()
+        user_input = data['plasmid_collection'].strip()
+        
+        # Input validation in Flask
+        if not user_input:
+            return jsonify({"error": "Search input cannot be empty"}), 400
 
-        results = batch_search_plasmids(plasmid_collection)
+        user_input_collection = PlasmidCollection.from_user_input(user_input)
+        lots, sublots = user_input_collection.get_lots_sublots()
+        results = find_plasmids(lots, sublots)
 
         return jsonify({
             "success": True,
-            "result": results
+            "summary": user_input_collection.to_dict(results),
+            "result": [plasmid.to_dict() for plasmid in results]
         }), 200
 
     except Exception as e:
@@ -50,21 +59,26 @@ def search_records():
 def add_record():
     try:
         data = request.get_json()
-        if not data or 'lot' not in data or 'sublot' not in data or 'volume_1' not in data:
+        if not data or 'lot' not in data or 'sublot' not in data or 'volumes' not in data or 'bag' not in data:
             return jsonify({"error": "Missing 'lot', 'sublot' or 'volume_1' or 'bag' field"}), 400
+
 
         lot = data['lot']
         sublot = data['sublot']
-        volume_1 = data['volume_1']
-        volume_2 = data.get('volume_2') #optional
-        notes = data.get('notes') #optional
-        bag = data.get('bag') #optional
+        volumes = data.get('volumes')
+        notes = data.get('notes')
+        bag = data['bag']
 
-        result = add_plasmid(lot, sublot, volume_1, volume_2, notes)
+        # Validate volumes before creating plasmid
+        if not volumes or (isinstance(volumes, list) and len(volumes) == 0):
+            return jsonify({"error": "Cannot add plasmid without any samples/volumes"}), 400
+
+        validated_plasmid = Plasmid(lot, sublot, bag, volumes, notes)
+        add_plasmid_record(validated_plasmid)
 
         return jsonify({
             "success": True,
-            "message": f"Plasmid {lot}-{sublot} successfully added to {result['bag']}"
+            "message": f"Plasmid {lot}-{sublot} successfully added to {bag}"
         }), 201
 
     except Exception as e:
@@ -77,20 +91,15 @@ def modify_record():
         if not data or 'lot' not in data or 'sublot' not in data:
             return jsonify({"error": "Missing 'lot', 'sublot' fields"}), 400
 
-        if not any([data.get('bag'), data.get('volume_1'), data.get('volume_2'), data.get('notes')]):
-            return jsonify({"error": "must pass either volume, notes or bag to modify plasmid"}), 400
-
         # Both required
         lot = data['lot']
         sublot = data['sublot']
-
-        # 1 required
-        bag = data.get('bag')
-        volume_1 = data.get('volume_1')
-        volume_2 = data.get('volume_2')
+        bag = data['bag']
+        volumes = data.get('volumes')
         notes = data.get('notes')
 
-        modify_plasmid(lot, sublot, volume_1, volume_2, notes, bag)
+        validated_plasmid = Plasmid(lot, sublot, bag, volumes, notes)
+        modify_plasmid_record(validated_plasmid)
 
         return jsonify({
             "success": True,
@@ -105,13 +114,17 @@ def modify_record():
 def delete_record():
     try:
         data = request.get_json()
-        if not data or 'lot' not in data or 'sublot' not in data:
-            return jsonify({"error": "Missing 'lot', 'sublot' fields"}), 400
+        if not data or 'lot' not in data or 'sublot' not in data or 'bag' not in data:
+            return jsonify({"error": "Missing 'lot', 'sublot' or 'bag' fields"}), 400
 
         lot = data['lot']
         sublot = data['sublot']
+        bag = data['bag']
+        volumes = data.get('volumes')
+        notes = data.get('notes')
 
-        delete_plasmid(lot, sublot)
+        validated_plasmid = Plasmid(lot, sublot, bag, volumes, notes)
+        delete_plasmid_record(validated_plasmid)
 
         return jsonify({
             "success": True,
@@ -138,5 +151,5 @@ def bad_request(error):
     return jsonify({"error": "Bad request"}), 400
 
 if __name__ == '__main__':
-    print("Server starting on port 5000")
+    print("Server starting on port 5000 - updated code")
     app.run(host='0.0.0.0', port=5000, debug=True)

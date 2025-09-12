@@ -35,8 +35,8 @@ const App = () => {
                  throw new Error(data.error || 'Search failed')
              }
 
-             console.log("API Response:", data.result);
-             setResults(data.result);
+             console.log("API Response:", data.summary);
+             setResults(data.summary);
         }
 
         catch (err) {
@@ -47,42 +47,128 @@ const App = () => {
 
     const renderResults = () => {
         if (!results) return null;
+        
+        const formatDate = (dateString) => {
+            if (!dateString) return 'N/A';
+            try {
+                return new Date(dateString).toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
+            } catch {
+                return dateString;
+            }
+        };
+
         return (
             <div className="mt-6">
-                <h3 className="text-lg font-semibold text-gray-800 mb-4">
-                    Search Results: {results.found}
-                </h3>
-                <pre style={{background: '#f5f5f5', padding: '10px', fontSize: '12px'}}>
-                    DEBUG: {JSON.stringify(results, null, 2)}
-                </pre>
+                {/* Search Summary */}
+                <div className="mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                    <h3 className="text-lg font-semibold text-gray-800">
+                        🔍 Search Results
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                        Found <span className="font-semibold text-blue-600">{results.found}</span> plasmids
+                    </p>
+                </div>
 
+                {/* Results by Bag */}
                 {results.bags && Object.keys(results.bags).length > 0 ? (
-                    <div className="space-y-4">
+                    <div className="space-y-6">
                         {Object.entries(results.bags).map(([bagName, plasmids]) => (
-                            <div key={bagName} className="bg-white border rounded-lg overflow-hidden shadow">
-                                <div className="bg-blue-50 px-4 py-2 border-b">
-                                    <h4 className="font-medium text-blue-800">Bag: {bagName}</h4>
+                            <div key={bagName} className="bg-white rounded-lg shadow-md border border-gray-200 overflow-hidden">
+                                {/* Bag Header */}
+                                <div className="bg-gradient-to-r from-indigo-500 to-blue-500 px-6 py-3">
+                                    <h4 className="text-white font-semibold text-lg">
+                                        📦 Bag {bagName}
+                                        <span className="ml-2 text-blue-100 text-sm font-normal">
+                                            ({plasmids.length} plasmid{plasmids.length !== 1 ? 's' : ''})
+                                        </span>
+                                    </h4>
                                 </div>
-                                <div className="p-4">
-                                    <ul className="space-y-2">
-                                        {plasmids.map((plasmid, index) => (
-                                            <li key={index} className="text-sm font-mono bg-blue-500 p-2 rounded">
-                                                {plasmid}
-                                            </li>
-                                        ))}
-                                    </ul>
+
+                                {/* Plasmids in this bag */}
+                                <div className="divide-y divide-gray-100">
+                                    {plasmids.map((plasmid, index) => (
+                                        <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
+                                            {/* Plasmid Header */}
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h5 className="text-lg font-mono font-semibold text-gray-900">
+                                                    🧬 {plasmid.id}
+                                                </h5>
+                                                <span className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded-full">
+                                                    {plasmid.volumes?.length || 0} sample{plasmid.volumes?.length !== 1 ? 's' : ''}
+                                                </span>
+                                            </div>
+
+                                            {/* Notes */}
+                                            {plasmid.notes && (
+                                                <div className="mb-3 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded-r">
+                                                    <p className="text-sm text-gray-700">
+                                                        <span className="font-medium">📝 Notes:</span> {plasmid.notes}
+                                                    </p>
+                                                </div>
+                                            )}
+
+                                            {/* Samples/Volumes */}
+                                            {plasmid.volumes && plasmid.volumes.length > 0 ? (
+                                                <div className="space-y-2">
+                                                    <h6 className="text-sm font-medium text-gray-700 mb-2">💧 Samples:</h6>
+                                                    <div className="grid gap-2">
+                                                        {plasmid.volumes.map((sample, sampleIndex) => (
+                                                            <div key={sampleIndex} 
+                                                                 className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                                <div className="flex items-center justify-between">
+                                                                    <span className="font-mono font-semibold text-blue-900">
+                                                                        {sample.volume} mL
+                                                                    </span>
+                                                                    <div className="text-xs text-gray-600 space-y-1">
+                                                                        <div>Created: {formatDate(sample.date_created)}</div>
+                                                                        <div>Modified: {formatDate(sample.date_modified)}</div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="text-sm text-gray-500 italic p-3 bg-gray-50 rounded border-l-4 border-gray-300">
+                                                    ⚠️ No samples recorded for this plasmid
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         ))}
                     </div>
                 ) : (
-                    <p className="text-gray-600">No plasmids found.</p>
+                    <div className="text-center p-8 bg-white rounded-lg border border-gray-200">
+                        <div className="text-6xl mb-4">🔍</div>
+                        <p className="text-gray-600 text-lg">No plasmids found matching your search.</p>
+                    </div>
                 )}
 
+                {/* Not Found Section */}
                 {results.not_found && results.not_found.length > 0 && (
-                    <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                        <h4 className="font-medium text-yellow-800 mb-2">Not Found:</h4>
-                        <p className="text-yellow-700">{results.not_found.join(', ')}</p>
+                    <div className="mt-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-r-lg">
+                        <div className="flex items-center">
+                            <div className="text-yellow-400 mr-2">⚠️</div>
+                            <h4 className="font-medium text-yellow-800">Plasmids Not Found</h4>
+                        </div>
+                        <p className="text-yellow-700 mt-2">
+                            The following plasmids were not found in the database:
+                        </p>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                            {results.not_found.map((plasmid, index) => (
+                                <span key={index} className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded font-mono text-sm">
+                                    {plasmid}
+                                </span>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

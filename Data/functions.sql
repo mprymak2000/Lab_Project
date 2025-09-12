@@ -1,10 +1,10 @@
 CREATE FUNCTION find_plasmids(lots INTEGER[], sublots TEXT[])
-RETURNS TABLE (bag VARCHAR(10), lot INTEGER, sub_lot VARCHAR(10)) as $$
+RETURNS TABLE (bag VARCHAR(10), lot INTEGER, sublot VARCHAR(10)) as $$
 BEGIN
     RETURN QUERY
-    SELECT u.bag, u.lot, u.sub_lot
+    SELECT u.bag, u.lot, u.sublot
     FROM plasmids p
-    WHERE (p.lot, p.sub_lot) IN (
+    WHERE (p.lot, p.sublot) IN (
         SELECT UNNEST(lots), UNNEST(sublots)
     );
 END;

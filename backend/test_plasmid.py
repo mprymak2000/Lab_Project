@@ -5,7 +5,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from try_2 import Plasmid, PlasmidCollection
+from plasmid_records import Plasmid, PlasmidCollection
 
 def test_volume_edge_cases():
     """Test all the weird volume scenarios"""
@@ -225,7 +225,7 @@ import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from try_2 import Plasmid, PlasmidCollection
+from plasmid_records import Plasmid, PlasmidCollection
 
 def create_mock_database():
     """Create a mock database with 10 plasmids in different bags"""

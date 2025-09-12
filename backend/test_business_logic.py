@@ -155,7 +155,7 @@ def test_full_workflow():
     """Test complete workflow with persistence"""
     print("\n=== Testing Full Workflow with Persistence ===")
 
-    from business_logic_refactor import add_plasmid_by_string, batch_search_plasmids, modify_plasmid_by_string, delete_plasmid_by_string
+    from business_logic_refactor import add_plasmid_by_string, batch_search_plasmids, modify_plasmid_by_id, delete_plasmid_by_id
 
     print("\n📊 Initial state:")
     show_mock_database()
@@ -182,7 +182,7 @@ def test_full_workflow():
     # Step 3: Modify the new plasmid (should work now!)
     print("\n🔄 Step 3: Modifying 9999-1 (should work now)...")
     try:
-        modify_plasmid_by_string("9999-1", 3.0, 1.5, "Updated volumes")
+        modify_plasmid_by_id("9999-1", 3.0, 1.5, "Updated volumes")
         print("✅ Modify completed")
     except Exception as e:
         print(f"❌ Modify failed: {e}")
@@ -193,7 +193,7 @@ def test_full_workflow():
     # Step 4: Delete the plasmid
     print("\n🔄 Step 4: Deleting 9999-1...")
     try:
-        delete_plasmid_by_string("9999-1")
+        delete_plasmid_by_id("9999-1")
         print("✅ Delete completed")
     except Exception as e:
         print(f"❌ Delete failed: {e}")
