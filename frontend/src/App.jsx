@@ -92,8 +92,8 @@ const App = () => {
 
                                 {/* Plasmids in this bag */}
                                 <div className="divide-y divide-gray-100">
-                                    {plasmids.map((plasmid, index) => (
-                                        <div key={index} className="p-6 hover:bg-gray-50 transition-colors">
+                                    {plasmids.map((plasmid) => (
+                                        <div key={`${bagName}-${plasmid.id}`} className="p-6 hover:bg-gray-50 transition-colors">
                                             {/* Plasmid Header */}
                                             <div className="flex items-center justify-between mb-3">
                                                 <h5 className="text-lg font-mono font-semibold text-gray-900">
@@ -163,8 +163,8 @@ const App = () => {
                             The following plasmids were not found in the database:
                         </p>
                         <div className="mt-2 flex flex-wrap gap-2">
-                            {results.not_found.map((plasmid, index) => (
-                                <span key={index} className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded font-mono text-sm">
+                            {results.not_found.map((plasmid) => (
+                                <span key={plasmid} className="px-2 py-1 bg-yellow-200 text-yellow-800 rounded font-mono text-sm">
                                     {plasmid}
                                 </span>
                             ))}

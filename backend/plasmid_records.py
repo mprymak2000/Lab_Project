@@ -255,26 +255,14 @@ class PlasmidCollection:
                     'lot': plasmid.lot,
                     'sublot': plasmid.sublot,
                     'volumes': plasmid.samples.to_dict(),
+                    'total_volume': plasmid.samples.sum_volumes() if plasmid.samples else 0,
                     'notes': plasmid.notes or '',
                     'id': plasmid.__str__()
                 })
             else:
                 raise ValueError("seems something doesnt have a bag! fix this")
 
-        return dict(sorted(bag_groups.items(), key=lambda x: self._natural_sort_key(x[0])))
-
-
-        # Natural sort helper function for search operation
-    @staticmethod
-    def _natural_sort_key(bag):
-        # Remove leading 'C' or 'c', then split into number parts
-        match = re.match(r'^[Cc](\d+)$', bag)
-        if match:
-            return int(match.group(1))  # just the numeric part for sorting
-        else:
-            # fallback: split into numbers/letters if bag doesn't match expected format
-            return [int(text) if text.isdigit() else text.lower()
-                    for text in re.split('([0-9]+)', bag)]
+        return dict(bag_groups)
 
 
 
@@ -469,6 +457,11 @@ class SampleCollection:
         return [{'volume': sample.volume,
                  'date_created': sample.date_created.isoformat(),
                  'date_modified': sample.date_modified.isoformat()} for sample in self._samples]
+
+
+    def sum_volumes(self):
+        return sum(sample.volume for sample in self._samples)
+
 
     def __len__(self):
         return len(self._samples)

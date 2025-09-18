@@ -1,18 +1,17 @@
-import React, {useRef, useState} from 'react'
+import React, {useState} from 'react'
 import PlasmidRecordInput from "./PlasmidRecordInput.jsx";
 import {PlasmidRecord} from "./utils/PlasmidRecord.js";
 
 //TODO: same record validation (lot-sublot no duplicates).
-//TODO: (OPTIONAL): vol2 only turns to volume 1; pass up field errors
 
 const AddPlasmidModal = ({isOpen, onClose}) => {
 
     const [recordsData, setRecordsData] = useState(
-        [new PlasmidRecord({lot: '', sublot: '', vol1: ''})]);
+        [new PlasmidRecord({lot: '', sublot: '', bag: '', volumes: [{volume: null, date_created: '', date_modified: ''}]})]);
 //    const [recordValidations, setRecordValidations] = useState([false]);
 
     const addRecord = () => {
-        setRecordsData([...recordsData, new PlasmidRecord({lot: '', sublot: '', vol1: ''})])
+        setRecordsData([...recordsData, new PlasmidRecord({lot: '', sublot: '', bag: '', volumes: ['']})])
     }
 
     const deleteRecord = (recordIndex) => {
@@ -26,7 +25,6 @@ const AddPlasmidModal = ({isOpen, onClose}) => {
         setRecordsData(newRecords);
     }
 
-    const allRecordsValid = recordsData.every(record => record.isValid());
     
     const handleCancel = () => {
         if (window.confirm("Are you sure you want to cancel? All changes will be lost.")) {
@@ -35,14 +33,43 @@ const AddPlasmidModal = ({isOpen, onClose}) => {
     }
     
     const handleSave = () => {
-        recordsData.every(record => console.log(record.isValid()));
-        console.log("allRecordsValid:", allRecordsValid);
         if (recordsData.length === 0) {
             console.log("There are no records to save");
             return;
-        } else if (!allRecordsValid) {
+        }
+
+        // Cast values to proper types before validation
+        const castedRecords = recordsData.map(record => {
+            return new PlasmidRecord({
+                lot: parseInt(record.lot) || record.lot, // Cast to int if possible
+                sublot: parseInt(record.sublot) || record.sublot, // Cast to int if possible
+                bag: record.bag, // Keep as string
+                volumes: record.volumes.map(vol => {
+                    if (typeof vol === 'string') {
+                        return {
+                            volume: parseFloat(vol),
+                            date_created: new Date().toISOString(),
+                            date_modified: new Date().toISOString()
+                        };
+                    } else if (typeof vol === 'object' && vol.volume) {
+                        return {
+                            volume: parseFloat(vol.volume),
+                            date_created: vol.date_created,
+                            date_modified: vol.date_modified
+                        };
+                    }
+                    return vol;
+                }).filter(vol => vol.volume > 0), // Remove empty volumes
+                notes: record.notes || '' // Keep as string
+            });
+        });
+
+        // Validate cast records
+        const allValid = castedRecords.every(record => record.isValid());
+        
+        if (!allValid) {
             console.log("One or more records contains unwanted input or has empty fields");
-            recordsData.forEach((record, index) => {
+            castedRecords.forEach((record, index) => {
                 if (!record.isValid()) {
                     console.log(`Record ${index + 1} is invalid`);
                 }
@@ -51,8 +78,8 @@ const AddPlasmidModal = ({isOpen, onClose}) => {
         }
 
         if (window.confirm("Are you sure you want to save these records?")) {
-            // TODO: Implement save logic
-            console.log("you did it you son of a bitch!")
+            // TODO: Implement save logic with castedRecords
+            console.log("Saving records:", castedRecords);
             onClose();
         }
     }

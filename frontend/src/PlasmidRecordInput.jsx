@@ -1,16 +1,16 @@
-import React, {useEffect, useRef, useState} from 'react'
+import React, {useRef, useState} from 'react'
 import {PlasmidRecord} from './utils/PlasmidRecord.js'
 
 const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
 
     const lotRef = useRef(null);
     const sublotRef = useRef(null);
-    const vol1Ref = useRef(null);
 
     const [sublotError, setSublotError] = useState('');
     const [lotError, setLotError] = useState('');
-    const [vol1Error, setVol1Error] = useState('');
-    const [vol2Error, setVol2Error] = useState('');
+    const [volumeErrors, setVolumeErrors] = useState(['', '', '']);
+    const [bagError, setBagError] = useState('');
+    const [showNotes, setShowNotes] = useState(false);
 
 
     const handleLotChange = (e) => {
@@ -26,6 +26,7 @@ const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
 
 
 
+
     const handleSublotChange = (e) => {
         const value = e.target.value;
         const error = data.validateSublot(value);
@@ -35,36 +36,72 @@ const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
         onDataChange(updatedRecord);
     }
 
+
     const handleSublotKeyDown = (e) => {
         if (e.key === 'Backspace' && data.sublot === '') lotRef.current.focus();
     }
 
-    const handleVol1Change = (e) => {
+    const handleVolumeChange = (index, e) => {
         const value = e.target.value;
-        const error = data.validateVol1(value);
-        setVol1Error(error);
+        const error = data.validateVolume(value);
+        const newErrors = [...volumeErrors];
+        newErrors[index] = error;
+        setVolumeErrors(newErrors);
 
-        const updatedRecord = new PlasmidRecord({...data, vol1: value});
+        const newVolumes = [...data.volumes];
+        const oldVolume = newVolumes[index];
+        newVolumes[index] = {...oldVolume, volume: value === "" ? null : value};
+
+        const updatedRecord = new PlasmidRecord({...data, volumes: newVolumes});
         onDataChange(updatedRecord);
     }
 
+    // ADDS extra field for volume input, max 3
+    const addVolumeInput = () => {
+        if (data.volumes.length >= 3) return;
 
-    const handleVol2Change = (e) => {
-        const value = e.target.value;
-        const error = data.validateVol2(value);
-        setVol2Error(error);
-
-        const updatedRecord = new PlasmidRecord({...data, vol2: value});
+        const newVolumes = [...data.volumes, { volume: null, date_created: "", date_modified: ""}];
+        const updatedRecord = new PlasmidRecord({...data, volumes: newVolumes});
         onDataChange(updatedRecord);
     }
 
-    const handleVolBlur = (vol, e) => {
+    const handleVolumeBlur = (index, e) => {
         const value = e.target.value;
+
+        // Auto-add .0 to whole numbers for clarity
         if (value && !value.includes('.') && /^\d+$/.test(value)) {
-            const updatedRecord = new PlasmidRecord({...data, [vol]: value + '.0'});
-            onDataChange(updatedRecord);
+            e.target.value = value + '.0';
+        }
+
+        // Auto-remove empty volumes (except the first one)
+        if (!value && index > 0) {
+            deleteVolumeInput(index);
         }
     }
+
+    // DELETES a volume input, minimum 1
+    const deleteVolumeInput = (index) => {
+        if (data.volumes.length <= 1) return; // Keep at least one volume
+
+        const newVolumes = data.volumes.filter((_, i) => i !== index);
+        const newErrors = volumeErrors.filter((_, i) => i !== index);
+        setVolumeErrors(newErrors);
+
+        const updatedRecord = new PlasmidRecord({...data, volumes: newVolumes});
+        onDataChange(updatedRecord);
+    }
+
+
+
+    const handleBagChange = (e) => {
+        const value = e.target.value;
+        const error = data.validateBag(value);
+        setBagError(error);
+
+        const updatedRecord = new PlasmidRecord({...data, bag: value});
+        onDataChange(updatedRecord);
+    }
+
 
 
     return (
@@ -72,51 +109,117 @@ const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
             {/* Input Row for Lot/Sublot/Volumes */}
             <div className="bg-blue-50 rounded px-2 flex flex-wrap items-center gap-6 gap-y-2 text-sm">
 
+                {/* Lot-Sublot */}
                 <div className="flex items-center gap-1">
-                    {/*Lot*/}
                     <input
-                        className={`w-20 px-2 py-2 bg-white text-s shadow-sm ${lotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${lotError ? 'border-red-500' : 'border-transparent'}`}
+                        className={`w-20 px-1 py-1 bg-white text-s shadow-sm ${lotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${lotError ? 'border-red-500' : 'border-transparent'}`}
                         placeholder="Lot"
-                        ref = {lotRef}
+                        ref={lotRef}
                         value={data.lot}
                         onChange={handleLotChange}
                         maxLength={4}
                     />
                     <span className="text-gray-400 text-s">-</span>
-                    {/*Sublot*/}
                     <input
-                        className={`w-16 px-2 py-2 bg-white text-s shadow-sm ${sublotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${sublotError ? 'border-red-500' : 'border-transparent'}`}
+                        className={`w-16 px-1 py-1 bg-white text-s shadow-sm ${sublotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${sublotError ? 'border-red-500' : 'border-transparent'}`}
                         placeholder="Sublot"
-                        ref = {sublotRef}
-                        value = {data.sublot}
+                        ref={sublotRef}
+                        value={data.sublot}
                         onKeyDown={handleSublotKeyDown}
                         onChange={handleSublotChange}
                     />
                 </div>
 
+                {/* Volume Inputs */}
                 <div className="flex items-center gap-1">
-                    {/*Volume 1*/}
+                    {(data.volumes).map((volume, index) => (
+                        <div key={index} className="relative">
+                            <input
+                                className={`w-14 px-1 py-1 ${data.volumes.length > 1 ? 'pr-4' : ''} bg-white text-s shadow-sm ${volumeErrors[index] ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${volumeErrors[index] ? 'border-red-500' : 'border-transparent'}`}
+                                placeholder={`Vol ${index + 1}`}
+                                value={volume.volume === null ? '' : volume.volume}
+                                autoFocus={index === data.volumes.length - 1 && index > 0}
+                                onChange={(e) => handleVolumeChange(index, e)}
+                                onBlur={(e) => handleVolumeBlur(index, e)}
+                            />
+                            {/* Delete Volume Button - embedded inside input */}
+                            {data.volumes.length > 1 && (
+                                <button
+                                    type="button"
+                                    className="absolute right-0 top-0 w-4 h-full bg-red-50  text-red-500 hover:bg-red-500 hover:text-white focus:outline-none flex items-center justify-center text-xs"
+                                    onClick={() => deleteVolumeInput(index)}
+                                >
+                                    ×
+                                </button>
+                            )}
+                        </div>
+                    ))}
+
+                    {/* Add Volume Button */}
+                    {(data.volumes).length < 3 && (
+                        <button
+                            type="button"
+                            className="py-2 w-8 h-8 text-gray-400 hover:text-blue-500 hover:bg-blue-50 border border-gray-300 hover:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:outline-none rounded flex items-center justify-center text-lg font-semibold"
+                            onClick={addVolumeInput}
+                        >
+                            +
+                        </button>
+                    )}
+                </div>
+
+                {/* Notes Button/Input */}
+                {!showNotes ? (
+                    <button
+                        type="button"
+                        className="px-3 py-1 border border-dashed border-gray-300 text-gray-500 text-s rounded hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
+                        onClick={() => setShowNotes(true)}
+                    >
+                        + Notes
+                    </button>
+                ) : (
+                    <div className="relative flex-1 min-w-[150px]">
+                        <input
+                            className="w-full px-1 py-1 pr-4 bg-white text-s shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none placeholder-gray-400 rounded border border-transparent"
+                            placeholder="Notes (optional)"
+                            value={data.notes}
+                            autoFocus
+                            onChange={(e) => {
+                                const updatedRecord = new PlasmidRecord({...data, notes: e.target.value});
+                                onDataChange(updatedRecord);
+                            }}
+                            onBlur={() => {
+                                if (!data.notes) setShowNotes(false);
+                            }}
+                        />
+                        <button
+                            type="button"
+                            className="absolute right-0 top-0 w-4 h-full bg-red-50 text-red-500 hover:bg-red-500 hover:text-white focus:outline-none flex items-center justify-center text-xs rounded-r"
+                            onClick={() => {
+                                const updatedRecord = new PlasmidRecord({...data, notes: ''});
+                                onDataChange(updatedRecord);
+                                setShowNotes(false);
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+
+                {/* Arrow & Bag */}
+                <div className="flex items-center gap-2">
+                    <span className="text-gray-400 text-lg">→</span>
                     <input
-                        className={`w-12 px-2 py-2 bg-white text-s shadow-sm ${vol1Error ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${vol1Error ? 'border-red-500' : 'border-transparent'}`}
-                        placeholder="Vol 1"
-                        value = {data.vol1}
-                        onChange={handleVol1Change}
-                        onBlur = {(e) => handleVolBlur('vol1', e)}
-                    />
-                    <span className="w-1"></span>
-                    {/*Volume 2*/}
-                    <input
-                        className={`w-12 px-2 py-2 bg-white text-s shadow-sm ${vol2Error ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${vol2Error ? 'border-red-500' : 'border-transparent'}`}
-                        placeholder="Vol 2"
-                        value = {data.vol2}
-                        onChange={handleVol2Change}
-                        onBlur = {(e) => handleVolBlur('vol2', e)}
+                        className={`w-16 px-1 py-1 bg-white text-s shadow-sm ${bagError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${bagError ? 'border-red-500' : 'border-transparent'}`}
+                        placeholder="Bag"
+                        value={data.bag}
+                        onChange={handleBagChange}
                     />
                 </div>
 
-                {/*Trash*/}
+                {/* Action Buttons */}
                 <button
-                    className="px-2 py-2 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-500 focus:ring-2 focus:ring-red-500 focus:outline-none rounded transition-colors ml-auto sm:ml-0 order-1 sm:order-3 sm:ml-auto"
+                    type="button"
+                    className="px-2 py-2 text-gray-400 hover:text-red-500 hover:bg-red-50 border border-transparent hover:border-red-500 focus:ring-2 focus:ring-red-500 focus:outline-none rounded transition-colors"
                     onClick={onDelete}
                 >
                     <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -124,22 +227,11 @@ const PlasmidRecordInput = ({data, onDataChange, onDelete}) => {
                     </svg>
                 </button>
 
-                {/*Notes*/}
-                <input
-                    className="flex-1 min-w-[150px] px-2 py-2 bg-white text-s shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none placeholder-gray-400 rounded order-2 sm:order-1"
-                    placeholder="Notes: ex. Endo Free"
-                    value = {data.notes}
-                    onChange = {(e) => {
-                        const updatedRecord = new PlasmidRecord({...data, notes: e.target.value});
-                        onDataChange(updatedRecord);
-                    }}
-                />
-
 
                 {/*Error messages*/}
-                {(lotError || sublotError || vol1Error || vol2Error) && (
+                {(lotError || sublotError || bagError || volumeErrors.find(err => err !== '')) && (
                     <div className="w-full text-xs text-red-500 px-2 order-last">
-                        {lotError || sublotError || vol1Error || vol2Error}
+                        {lotError || sublotError || bagError || volumeErrors[0] || volumeErrors[1] || volumeErrors[2]}
                     </div>
                 )}
             </div>
