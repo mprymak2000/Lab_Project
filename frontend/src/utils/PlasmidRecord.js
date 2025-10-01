@@ -1,94 +1,196 @@
+/*
+    PlasmidRecord class to manage plasmid data with validation and total volume calculation.
+    Each record includes lot, sublot, bag, samples (array of sample objects), notes, date_added, and total_volume being added in automagically.
+    EXCEPT SAMPLES, Constructor allows anythign to be passed in, so it's user input friendly.
+    Samples is an object, with volume floats to be passed into it, and therefore its structure is enforced to separate concerns...
+    ... each component MUST have this structure in the end, and it makes for easy maintence
+    Validation methods ensure data integrity for lot, sublot, bag, and samples.
+    Aside from samples structure, No enforcement occurs in constructor, all data is to be validated before finalizing operations, including actual float values passed to samples
+ */
+
+
 export class PlasmidRecord {
-    constructor({id, lot, sublot, bag, volumes, notes = '', date_added = new Date().toISOString().split('T')[0], total_volume = null}) {
+    constructor({lot='', sublot='', bag='', samples=null, notes = '', date_added = ''}) {
         this.lot = lot;
         this.sublot = sublot;
         this.bag = bag;
-        this.volumes = Array.isArray(volumes) ? volumes : [{ volume: null, date_created: "", date_modified: ""}];
-        this.notes = notes || '';
+        this.samples = this.normalizeSamples(samples); 
+        this.notes = notes;
         this.date_added = date_added;
-        // Use provided total_volume if available (from backend), otherwise calculate it
-        this.total_volume = total_volume !== null ? total_volume : this.calculateTotalVolume();
+        // Always calculate total_volume from samples, on each initialization
+        this.total_volume = this.calculateTotalVolume();
+    }
+    /**
+     * Normalizes sample input to ensure consistent structure for all samples
+     * Every sample must have: {volume, date_created, date_modified}
+     */
+    normalizeSamples(samples) {
+        // Case 1: Array with elements (most common case)
+        if (Array.isArray(samples) && samples.length > 0) {
+            return samples.map(vol => {
+                // Subcase 1a: Object volume (from database or frontend editing)
+                if (typeof vol === 'object' && vol !== null) {
+                    // Examples: {volume: "5.0", date_created: "2023-01-01"} or {volume: "3.0"}
+                    // Ensure all required fields exist
+                    return {
+                        volume: vol.volume,
+                        date_created: vol.date_created || "",
+                        date_modified: vol.date_modified || ""
+                    };
+                } else {
+                    // Subcase 1b: Primitive volume (raw numbers/strings)
+                    // Examples: "5.0", 3.5, null
+                    // Convert to full object structure with current timestamps
+                    return {volume: vol, date_created: "", date_modified: ""};
+                }
+            });
+        }
+        // Case 2: Single non-array value (rare edge case)
+        else if (samples != null && !Array.isArray(samples)) {
+            // Examples: "5.0", 3.5
+            // Wrap single value in array with proper structure
+            return [{volume: samples, date_created: "", date_modified: ""}];
+        }
+        // Case 3: Null, undefined, or empty array (new record initialization)
+        // Create default empty sample with null volume
+        return [{volume: null, date_created: "", date_modified: ""}];
     }
 
     calculateTotalVolume() {
-        if (!this.volumes || !Array.isArray(this.volumes)) return 0;
-        return this.volumes.reduce((sum, vol) => sum + (parseFloat(vol.volume) || 0), 0);
+        if (!this.samples || !Array.isArray(this.samples)) return 0;
+        return this.samples.reduce((sum, vol) => sum + (parseFloat(vol.volume) || 0), 0);
     }
 
 
     validateLot(value) {
-        if (value === "") return "Lot: this field cannot be empty";
-        const intValue = parseInt(value, 10);
-        if (isNaN(intValue) || intValue <= 0) return "Lot: must be a positive integer with no leading zeros";
+        if (value === "" || value == null) return "Lot: this field cannot be empty";
+        if (!/^\d+$/.test(value)) return "Lot: must contain only digits";
+        if (value.length > 1 && value.startsWith('0')) return "Lot: this field cannot have leading zeros";
+        if (parseInt(value, 10) <= 0) return "Lot: this field must be a positive integer";
         
         return "";
     }
 
     validateSublot(value) {
-        if (value === "") return "Sublot: this field cannot be empty";
-        const intValue = parseInt(value, 10);
-        if (isNaN(intValue) || intValue <= 0) return "Sublot: must be a positive integer with no leading zeros";
+        if (value === "" || value == null) return "Sublot: this field cannot be empty";
+        if (!/^\d+$/.test(value)) return "Sublot: must contain only digits";
+        if (value.length > 1 && value.startsWith('0')) return "Sublot: this field cannot have leading zeros";
+        if (parseInt(value, 10) <= 0) return "Sublot: must be a positive integer";
+        
         return "";
     }
 
     validateBag(value) {
-        if (value === "") return "Bag: this field cannot be empty";
+        if (value === "" || value == null) return "Bag: this field cannot be empty";
         if (!/^[A-Za-z][1-9]\d*$/.test(value)) return "Bag: must be one letter followed by a number with no leading zeros (e.g., C20)";
         return "";
     }
 
 
-    // Validation for single volume input - handles strings during typing
+    // Validation for single sample volume input - handles strings during typing. user friendly messages.
     validateVolume(volume) {
-        if (volume === "") return "Volume: this field cannot be empty";
-        const floatValue = parseFloat(volume);
-        if (isNaN(floatValue) || floatValue <= 0) return "Volume: must be a positive number with no leading zeros";
+        if (volume === "" || volume == null) return "Sample: this field cannot be empty"; //catches all empties, null and undefined
+        if (!/^\d*\.?\d*$/.test(volume) || volume === '.') return "Sample: must an integer or decimal";
+        if (parseFloat(volume) <= 0.5) return "Sample: must be a positive number above 0.5mL. Store in microcentrifuge tube if less.";
         return "";
     }
 
-    // Validates the volumes array for final record validation
-    validateVolumesArray(volumes) {
-        if (!Array.isArray(volumes)) return "Volumes: must be an array";
+    // Validates the samples array for final record validation
+    validateSamplesArray(samples) {
+        // Constructor ensures this is always a properly structured array with at least one {samples:null,date:"",date:""} element
         
-        // Filter out empty/null volumes for validation
-        const validVolumes = volumes.filter(v => v.volume !== null && v.volume !== undefined);
-        
-        if (validVolumes.length === 0) return "Volumes: at least one volume is required";
-
-        for (let i = 0; i < validVolumes.length; i++) {
-            const error = this.validateVolumeObject(validVolumes[i]);
-            if (error) return `Volume ${i + 1}: ${error}`;
+        // Validate each sample value
+        for (let i = 0; i < samples.length; i++) {
+            const sampleError = this.validateVolume(samples[i].volume);
+            if (sampleError) {
+                // Remove "Sample: " prefix since we add position info
+                const cleanError = sampleError.replace("Sample: ", "");
+                return `Sample ${i + 1}: ${cleanError}`;
+            }
         }
         return "";
     }
-    // Validation for properly formatted volume objects - used in final validation
-    validateVolumeObject(volumeObj) {
-        if (typeof volumeObj !== "object" || volumeObj === null) return "must be an object";
-        if (volumeObj.volume === null || volumeObj.volume === undefined) return "cannot be empty";
-        if (typeof volumeObj.volume !== "number" || volumeObj.volume <= 0) return "must be a positive number";
-        return "";
-    }
+
 
 
     getFullId() {
         return `${this.lot}-${this.sublot}`;
     }
 
+    equals(other) {
+        if (!other || !(other instanceof PlasmidRecord)) return false;
+        
+        // Compare basic fields
+        if (this.lot !== other.lot || 
+            this.sublot !== other.sublot || 
+            this.bag !== other.bag || 
+            this.notes !== other.notes) {
+            return false;
+        }
+        
+        // Compare samples arrays
+        if (this.samples.length !== other.samples.length) return false;
+        
+        for (let i = 0; i < this.samples.length; i++) {
+            const thisVol = this.samples[i];
+            const otherVol = other.samples[i];
+            
+            if (thisVol.volume !== otherVol.volume ||
+                thisVol.date_created !== otherVol.date_created ||
+                thisVol.date_modified !== otherVol.date_modified) {
+                return false;
+            }
+        }
+        
+        return true;
+    }
+
     isValid() {
+        return this.getValidationErrors().length === 0;
+    }
+
+    getValidationErrors() {
+        const errors = [];
+        
         const lotError = this.validateLot(this.lot);
         const sublotError = this.validateSublot(this.sublot);
         const bagError = this.validateBag(this.bag);
-        const volumesError = this.validateVolumesArray(this.volumes);
+        const samplesError = this.validateSamplesArray(this.samples);
 
-        if (lotError) console.log(`PlasmidRecord validation failed - Lot: ${lotError}`);
-        if (sublotError) console.log(`PlasmidRecord validation failed - Sublot: ${sublotError}`);
-        if (bagError) console.log(`PlasmidRecord validation failed - Bag: ${bagError}`);
-        if (volumesError) console.log(`PlasmidRecord validation failed - ${volumesError}`);
+        if (lotError) errors.push(lotError);
+        if (sublotError) errors.push(sublotError);
+        if (bagError) errors.push(bagError);
+        if (samplesError) errors.push(samplesError);
 
-        return lotError === "" && sublotError === "" && bagError === "" && volumesError === "";
+        return errors;
+    }
+
+    toAPIPayload() {
+        return {
+            lot: this.lot,
+            sublot: this.sublot,
+            bag: this.bag,
+            samples: this.samples,
+            notes: this.notes,
+            date_added: this.date_added
+        };
     }
 
     static fromPlainObject(obj) {
         return new PlasmidRecord(obj);
     }
 }
+
+/*
+normalizeSamples(samples) {
+        if (Array.isArray(samples) && samples.length > 0) {
+            return samples.map(vol =>
+                typeof vol === 'object' && vol !== null ? vol :
+                    {volume: vol, date_created: "", date_modified: ""}
+            );
+        } else if (samples != null && !Array.isArray(samples)) {
+            return [{volume: samples, date_created: "", date_modified: ""}];
+        }
+        return [{volume: null, date_created: "", date_modified: ""}];
+    }
+ */

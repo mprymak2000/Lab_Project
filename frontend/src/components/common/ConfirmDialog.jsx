@@ -1,6 +1,45 @@
 import React from 'react';
 import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
 
+const PlasmidRecordPreview = ({ 
+    record,
+    label,
+    bgColor = "bg-blue-200",
+    textColor = "text-blue-700",
+    layout = 'stacked',
+    showLabel = true,
+    otherRecord = null
+}) => {
+
+    const notesChanged = otherRecord && (record?.notes !== otherRecord?.notes);
+
+    return (
+        <div className={layout === 'stacked' ? 'p-3' : 'p-1'}>
+            {showLabel && <div className={`text-xs font-semibold mb-2 ${textColor}`}>{label}</div>}
+            <div className={layout === 'stacked' ? 'space-y-2' : 'flex gap-2'}>
+                <div className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap min-w-16 text-center ${bgColor} ${textColor}`}>
+                    <span>{record?.getFullId()}</span>
+                </div>
+                
+                {/* Individual Volume Samples */}
+                <div className="flex gap-1">
+                    {record?.samples?.map((vol, index) => (
+                        <div key={index} className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap text-center min-w-12 ${bgColor} ${textColor}`}>
+                            {vol.volume ? `${vol.volume}mL` : '—'}
+                        </div>
+                    ))}
+                </div>
+                
+                {notesChanged && (
+                    <div className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap w-20 text-center ${bgColor} ${textColor}`}>
+                        {label === "Original" ? "Note" : "New Note"}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const ConfirmDialog = ({ 
     isOpen, 
     onConfirm, 
@@ -21,6 +60,8 @@ const ConfirmDialog = ({
                 return <XCircle className="w-6 h-6 text-red-500" />;
             case 'success':
                 return <CheckCircle className="w-6 h-6 text-green-500" />;
+            case 'error':
+                return <XCircle className="w-6 h-6 text-red-500" />;
             case 'warning':
             default:
                 return <AlertTriangle className="w-6 h-6 text-yellow-500" />;
@@ -33,6 +74,8 @@ const ConfirmDialog = ({
                 return "bg-red-600 hover:bg-red-700 focus:ring-red-500";
             case 'success':
                 return "bg-green-600 hover:bg-green-700 focus:ring-green-500";
+            case 'error':
+                return "bg-red-600 hover:bg-red-700 focus:ring-red-500";
             case 'warning':
             default:
                 return "bg-yellow-600 hover:bg-yellow-700 focus:ring-yellow-500";
@@ -75,12 +118,14 @@ const ConfirmDialog = ({
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 p-6 pt-6 justify-end">
-                        <button
-                            onClick={onCancel}
-                            className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
-                        >
-                            {cancelText}
-                        </button>
+                        {cancelText !== "" && (
+                            <button
+                                onClick={onCancel}
+                                className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                            >
+                                {cancelText}
+                            </button>
+                        )}
                         <button
                             onClick={onConfirm}
                             className={`px-4 py-2 text-white rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 ${getButtonStyles()}`}
@@ -95,3 +140,4 @@ const ConfirmDialog = ({
 };
 
 export default ConfirmDialog;
+export { PlasmidRecordPreview };

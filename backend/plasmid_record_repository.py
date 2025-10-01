@@ -48,11 +48,22 @@ class PlasmidDatabase:
 # Global database instance
 db = PlasmidDatabase()
 
+def check_database_health():
+    """Check if database connection is working"""
+    try:
+        conn = db.connect()
+        with conn.cursor() as cursor:
+            # Simple query to test connection
+            cursor.execute("SELECT 1")
+            cursor.fetchone()
+        return True, "Database connection healthy"
+    except Exception as e:
+        return False, f"Database connection failed: {str(e)}"
+
 
 
 #----------------------------
-# Business Logic Layer
-# TODO: add try catch for all functions, return error messages
+# Repository
 #----------------------------
 
 
@@ -61,7 +72,7 @@ db = PlasmidDatabase()
 def find_plasmids(lots=None, sublots=None):
     """Find plasmids - all if no params, filtered if lots/sublots provided"""
     query = """
-            SELECT p.lot, p.sublot, p.bag, p.notes,
+            SELECT p.lot, p.sublot, p.bag, p.notes, p.date_added,
                    COALESCE(
                        JSON_AGG(
                            JSON_BUILD_OBJECT(
@@ -77,15 +88,23 @@ def find_plasmids(lots=None, sublots=None):
             """
 
     if lots and sublots:
+        # Handle both single values and lists
+        if not isinstance(lots, list):
+            lots = [lots]
+        if not isinstance(sublots, list):
+            sublots = [sublots]
+        
         query += " WHERE (p.lot, p.sublot) IN (SELECT UNNEST(%s), UNNEST(%s))"
         params = (lots, sublots)
     else:
         params = None
 
-    query += " GROUP BY p.id, p.lot, p.sublot, p.bag, p.notes ORDER BY p.bag, p.lot, p.sublot"
+    query += " GROUP BY p.id, p.lot, p.sublot, p.bag, p.notes, p.date_added ORDER BY p.bag, p.lot, p.sublot"
 
     results = execute_sql(query, params)
-    plasmids = [Plasmid(result['lot'], result['sublot'], result['bag'], result['samples'], result['notes']) for result in results]
+    plasmids = [Plasmid(**result) for result in results]
+    
+    # Always return PlasmidCollection, even if just one plasmid, for consistency
     return PlasmidCollection(plasmids)
 
 def get_all_plasmids():
@@ -98,7 +117,7 @@ def delete_plasmid_record(plasmid):
     """Delete plasmid from database"""
     print(f"Deleting plasmid {plasmid.lot}-{plasmid.sublot} from database")
 
-    # THIS DELETES SAMPLES/VOLUMES AS WELLL VIA CASCADE
+    # THIS DELETES SAMPLES/VOLUMES AS WELLL VIA SQL CASCADE
     query = "DELETE FROM plasmids WHERE lot = %s AND sublot = %s AND bag = %s"
     params = (plasmid.lot, plasmid.sublot, plasmid.bag)
     
@@ -112,42 +131,68 @@ def delete_plasmid_record(plasmid):
 ###End Delete
 
 ### ADD
-def add_plasmid_record(plasmid):
-    """Insert plasmid into database"""
+def add_plasmid_record(plasmids):
+    """Insert plasmid(s) into database - accepts single plasmid or list of plasmids"""
+    
+    # Handle both single plasmid and list of plasmids
+    if not isinstance(plasmids, list):
+        plasmids = [plasmids]
+    
+    if not plasmids:
+        raise ValueError("No plasmids provided")
+    
     try:
-        print(f"Inserting plasmid {plasmid.lot}-{plasmid.sublot} into database")
-        print(f"DEBUG: plasmid object: {plasmid}")
-        print(f"DEBUG: plasmid.volumes: {plasmid.volumes}")
-        print(f"DEBUG: plasmid.samples: {plasmid.samples}")
-
-        # Get list of volume numbers from SampleCollection
-        volumes = plasmid.samples.to_list()
-        print(f"DEBUG: volumes list: {volumes}")
-
-        # Use transaction to insert plasmid and samples atomically
+        print(f"Inserting {len(plasmids)} plasmid(s) into database")
+        
+        # Validate bag numbers for all plasmids before insertion
+        for plasmid in plasmids:
+            _bag_number_in_range(plasmid.bag)
+        
+        # Use transaction to insert all plasmids and samples atomically
         operations = []
         
-        # Insert plasmid first
-        plasmid_query = """
-            INSERT INTO plasmids (lot, sublot, bag, notes, date_added)
-            VALUES (%s, %s, %s, %s, NOW())
-            RETURNING id
-        """
-        operations.append((plasmid_query, (plasmid.lot, plasmid.sublot, plasmid.bag, plasmid.notes)))
-        
-        # Insert each sample
-        for volume in volumes:
-            sample_query = """
-                INSERT INTO samples (plasmid_id, volume, date_created, date_modified)
-                VALUES ((SELECT currval(pg_get_serial_sequence('plasmids','id'))), %s, NOW(), NOW())
+        for i, plasmid in enumerate(plasmids):
+            print(f"Processing plasmid {i+1}/{len(plasmids)}: {plasmid.lot}-{plasmid.sublot}")
+            print(f"DEBUG: plasmid object: {plasmid}")
+            print(f"DEBUG: plasmid.samples: {plasmid.samples}")
+
+            # Get list of volume numbers from SampleCollection
+            volumes = plasmid.samples.to_list()
+            print(f"DEBUG: volumes list: {volumes}")
+            
+            # Insert plasmid first
+            plasmid_query = """
+                INSERT INTO plasmids (lot, sublot, bag, notes, date_added)
+                VALUES (%s, %s, %s, %s, NOW())
+                RETURNING id
             """
-            operations.append((sample_query, (volume,)))
+            params = (plasmid.lot, plasmid.sublot, plasmid.bag, plasmid.notes)
+            operations.append((plasmid_query, params))
+            
+            # Insert each sample for this plasmid
+            for volume in volumes:
+                sample_query = """
+                    INSERT INTO samples (plasmid_id, volume, date_created, date_modified)
+                    VALUES ((SELECT currval(pg_get_serial_sequence('plasmids','id'))), %s, NOW(), NOW())
+                """
+                operations.append((sample_query, (volume,)))
         
+        # Execute all operations in a single transaction
         results = execute_transaction(operations)
-        print(f"SUCCESS: Created new plasmid {plasmid.lot}-{plasmid.sublot} in {plasmid.bag} with {len(volumes)} samples")
+        
+        success_msg = f"SUCCESS: Created {len(plasmids)} plasmid(s) in database"
+        for plasmid in plasmids:
+            volumes = plasmid.samples.to_list()
+            success_msg += f"\n  - {plasmid.lot}-{plasmid.sublot} in {plasmid.bag} with {len(volumes)} samples"
+        print(success_msg)
+        
+        return {"inserted_count": len(plasmids), "plasmids": [{"lot": p.lot, "sublot": p.sublot, "bag": p.bag} for p in plasmids]}
         
     except Exception as e:
-        print(f"ERROR: Failed to add plasmid {plasmid.lot}-{plasmid.sublot}: {e}")
+        error_msg = f"ERROR: Failed to add plasmid(s): {e}"
+        if len(plasmids) > 1:
+            error_msg += f"\nTransaction rolled back - no records were inserted"
+        print(error_msg)
         raise
 ### END ADD
 
@@ -157,6 +202,9 @@ def modify_plasmid_record(plasmid):
     try:
         print(f"Updating plasmid {plasmid.lot}-{plasmid.sublot} in database")
 
+        # Validate bag number to make sure it's within acceptable database range, for move operations
+        _bag_number_in_range(plasmid.bag)
+
         # Get list of volume numbers and sample metadata
         volumes = plasmid.samples.to_list()
         date_created = [sample.date_created for sample in plasmid.samples]
@@ -165,29 +213,31 @@ def modify_plasmid_record(plasmid):
         # Use transaction to update plasmid and replace all samples atomically
         operations = []
         
-        # Update plasmid first
+        # Update plasmid first - MUST include bag in WHERE clause for unique identification
         update_query = """
             UPDATE plasmids 
             SET bag = %s, notes = %s 
-            WHERE lot = %s AND sublot = %s
+            WHERE lot = %s AND sublot = %s AND bag = %s
             RETURNING id
         """
-        operations.append((update_query, (plasmid.bag, plasmid.notes, plasmid.lot, plasmid.sublot)))
+          
+        params = (plasmid.bag, plasmid.notes, plasmid.lot, plasmid.sublot, plasmid.bag)
+        operations.append((update_query, params))
         
-        # Delete existing samples
         delete_query = """
             DELETE FROM samples 
-            WHERE plasmid_id = (SELECT id FROM plasmids WHERE lot = %s AND sublot = %s)
+            WHERE plasmid_id = (SELECT id FROM plasmids WHERE lot = %s AND sublot = %s AND bag = %s)
         """
-        operations.append((delete_query, (plasmid.lot, plasmid.sublot)))
+        operations.append((delete_query, (plasmid.lot, plasmid.sublot, plasmid.bag)))
         
         # Insert new samples
         for i, volume in enumerate(volumes):
             sample_query = """
                 INSERT INTO samples (plasmid_id, volume, date_created, date_modified)
-                VALUES ((SELECT id FROM plasmids WHERE lot = %s AND sublot = %s), %s, %s, %s)
+                VALUES ((SELECT id FROM plasmids WHERE lot = %s AND sublot = %s AND bag = %s), %s, %s, %s)
             """
-            operations.append((sample_query, (plasmid.lot, plasmid.sublot, volume, date_created[i], date_modified[i])))
+            params = (plasmid.lot, plasmid.sublot, plasmid.bag, volume, date_created[i], date_modified[i])
+            operations.append((sample_query, params))
         
         results = execute_transaction(operations)
         
@@ -203,8 +253,25 @@ def modify_plasmid_record(plasmid):
         raise
 ### END MODIFY
 
-#todo: fix this. this simply creates a new bag for each added plasmid.
-# need to have it analyze and choose a good place
+def _bag_number_in_range(bag_name):
+    """Validate that bag number is not more than +1 of the highest existing bag"""
+    requested_num = int(bag_name[1:])
+    
+    query = """
+            SELECT MAX(CAST(SUBSTRING(bag FROM 2) AS INTEGER)) as max_num
+            FROM plasmids 
+            WHERE bag ~* '^c[0-9]+$'
+        """
+    
+    result = execute_sql(query)
+    if result and result[0]['max_num'] is not None:
+        max_existing = result[0]['max_num']
+        if requested_num > max_existing + 1:
+            raise ValueError(f"Bag number C{requested_num} is not allowed. Please increment bags. Most recent bag number is: C{max_existing}")
+    
+    return True
+
+##todo: not used - delete
 def _generate_bag_number():
     print(f"Generating new bag number")
     """Find the highest bag number and increment"""
@@ -267,7 +334,7 @@ def execute_transaction(operations, fetch_one=False):
     except psycopg2.IntegrityError as e:
         conn.rollback()
         if "unique" in str(e).lower():
-            raise ValueError("Record already exists - duplicate entry")
+            raise ValueError("Record already exists in this bag - duplicate entry")
         else:
             raise ValueError(f"Data constraint error: {e}")
     except psycopg2.Error as e:

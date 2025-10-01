@@ -121,7 +121,7 @@ def mock_execute_sql(params=None, function_name='find_plasmids', query=None):
 
 def setup_mock_database():
     """Replace real database function with mock"""
-    import business_logic_refactor
+    import plasmid_record_repository
     business_logic_refactor._original_execute_sql = business_logic_refactor.execute_sql
     business_logic_refactor.execute_sql = mock_execute_sql
     reset_mock_database()
@@ -130,7 +130,7 @@ def setup_mock_database():
 def restore_real_database():
     """Restore real database function"""
     try:
-        import business_logic_refactor
+        import plasmid_record_repository
         if hasattr(business_logic_refactor, '_original_execute_sql'):
             business_logic_refactor.execute_sql = business_logic_refactor._original_execute_sql
             delattr(business_logic_refactor, '_original_execute_sql')
@@ -155,7 +155,7 @@ def test_full_workflow():
     """Test complete workflow with persistence"""
     print("\n=== Testing Full Workflow with Persistence ===")
 
-    from business_logic_refactor import add_plasmid_by_string, batch_search_plasmids, modify_plasmid_by_id, delete_plasmid_by_id
+    from plasmid_record_repository import add_plasmid_by_string, batch_search_plasmids, modify_plasmid_by_id, delete_plasmid_by_id
 
     print("\n📊 Initial state:")
     show_mock_database()
@@ -205,7 +205,7 @@ def test_add_plasmid():
     """Test add plasmid business logic"""
     print("\n=== Testing Add Plasmid Business Logic ===")
 
-    from business_logic_refactor import add_plasmid_by_string
+    from plasmid_record_repository import add_plasmid_by_string
 
     test_cases = [
         ("9999-1", 2.5, None, "New plasmid"),      # Should create new

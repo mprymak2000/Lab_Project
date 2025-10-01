@@ -5,14 +5,15 @@ import re
 
 class Plasmid:
     # empties for records that exist (samples/volumes and notes), None for temp objects
-    def __init__(self, lot, sublot, bag, volumes, notes=None):
+    def __init__(self, lot, sublot, bag, samples, notes=None, date_added=None):
         self._lot, self._sublot = self._validate_plasmid_format(lot=lot, sublot=sublot) #must exist and be valid
         self._bag = self._validate_bag(bag) #must exist and be valid
-        self._samples = SampleCollection(volumes) #turns into empty collection if None/empty. None means uninitialized, empty means no samples (for old database records)
+        self._samples = SampleCollection(samples) #turns into empty collection if None/empty. None means uninitialized, empty means no samples (for old database records)
         self.notes = self._normalize_notes(notes) #no none, just empty if record exists
+        self.date_added = date_added
 
     @classmethod
-    def from_id(cls, full_plasmid, bag, volumes, notes=None):
+    def from_id(cls, full_plasmid, bag, samples, notes=None):
         """Load plasmid from full format (xxxx-xx)"""
 
         # Manual initialization with flexible validation
@@ -21,21 +22,21 @@ class Plasmid:
             raise ValueError("Invalid Format. Use XXXX-XX")
         lot, sublot = int(plasmid.group(1)), int(plasmid.group(2))
 
-        return cls(lot, sublot, bag, volumes, notes)
+        return cls(lot, sublot, bag, samples, notes)
 
-    """Parital initialization for temporary objects without bag and volumes. For search purposes"""
+    """Parital initialization for temporary objects without bag and samples/volumes. For search purposes"""
     @classmethod
-    def temp_plasmid_from_id(cls, full_plasmid, bag=None, volumes=None, notes=None):
+    def temp_plasmid_from_id(cls, full_plasmid, bag=None, samples=None, notes=None):
         """Create a temporary plasmid object from full format (xxxx-xx)"""
         # Manual initialization with flexible validation
         plasmid = re.match(r'^(\d+)-(\d+)$', full_plasmid.strip())
         if not plasmid:
             raise ValueError("Invalid Format. Use XXXX-XX")
         lot, sublot = int(plasmid.group(1)), int(plasmid.group(2))
-        return cls.temp_plasmid(lot, sublot, bag, volumes, notes)
+        return cls.temp_plasmid(lot, sublot, bag, samples, notes)
 
     @classmethod
-    def temp_plasmid(cls, lot, sublot, bag=None, volumes=None, notes=None):
+    def temp_plasmid(cls, lot, sublot, bag=None, samples=None, notes=None):
         """Create a temporary plasmid object with only lot and sublot being required"""
         try:
             lot = int(lot)
@@ -45,7 +46,7 @@ class Plasmid:
         instance = cls.__new__(cls)
         instance._lot, instance._sublot = cls._validate_plasmid_format(lot=lot, sublot=sublot)
         instance._bag = cls._validate_bag(bag) if bag is not None else None
-        instance._samples = SampleCollection(volumes) if volumes is not None else None
+        instance._samples = SampleCollection(samples) if samples is not None else None
         instance.notes = cls._normalize_notes(notes) if notes is not None else None
         return instance
 
@@ -62,7 +63,8 @@ class Plasmid:
             'sublot': self.sublot,
             'bag': self.bag,
             'samples': self._samples.to_dict() if self._samples else [],
-            'notes': self.notes
+            'notes': self.notes,
+            'date_added': self.date_added
         }
 
     def __eq__(self, other):
@@ -73,7 +75,7 @@ class Plasmid:
     def __hash__(self):
         return hash((self.lot, self.sublot))
 
-    # Reading properties for lot, sublot, volumes and bag
+    # Reading properties for lot, sublot, samples/volumes and bag
     # Cannot change them
     @property
     def lot(self):
@@ -99,27 +101,27 @@ class Plasmid:
     # Volume management methods with validation
     #----------------------------
 
-    def add_volume(self, volume):
+    def add_sample(self, sample_volume):
         """Add a volume to samples collection"""
-        self._samples.add_sample(volume)
+        self._samples.add_sample(sample_volume)
 
-    def set_vol(self, volume, index):
+    def set_sample(self, sample_volume, index):
         """Replace a specified volume"""
-        self._samples.set_sample(index, volume)
+        self._samples.set_sample(index, sample_volume)
 
-    def remove_volume(self, index):
+    def remove_sample(self, index):
         """Remove a specific volume by index"""
         removed_sample = self._samples.remove_sample(index)
         print(f"Volume {removed_sample.volume} at index {index} is removed.")
         return removed_sample
 
-    def clear_all_volumes(self):
-        """Clear all volumes"""
+    def clear_all_samples(self):
+        """Clear all volumes and metadata"""
         removed_samples = self._samples.clear_all()
         print(f"Volumes are deleted. If no samples exist, please delete the whole plasmid record")
         return removed_samples
 
-    def volumes_to_string(self):
+    def samples_to_string(self):
         """Convert samples to string format"""
         return self._samples.to_string() if self._samples else ""
 
@@ -135,8 +137,6 @@ class Plasmid:
 
     def update_bag(self, bag):
         self._bag = self._validate_bag(bag)
-    #todo: add bag validation
-
 
     #----------------------------
     # Static validation methods
@@ -151,8 +151,8 @@ class Plasmid:
         except (ValueError, TypeError):
             raise ValueError("Lot and sublot must be integers")
 
-        if lot < 0 or sublot < 0:
-            raise ValueError("Lot and sublot must be non-negative")
+        if lot <= 0 or sublot < 0:
+            raise ValueError("Lot must be positive, sublot must be non-negative")
 
         print(f"validated!")
         return lot, sublot
@@ -251,14 +251,7 @@ class PlasmidCollection:
 
         for plasmid in self.plasmids:
             if plasmid.bag:  # Only group if plasmid has bag (from database)
-                bag_groups[plasmid.bag].append({
-                    'lot': plasmid.lot,
-                    'sublot': plasmid.sublot,
-                    'volumes': plasmid.samples.to_dict(),
-                    'total_volume': plasmid.samples.sum_volumes() if plasmid.samples else 0,
-                    'notes': plasmid.notes or '',
-                    'id': plasmid.__str__()
-                })
+                bag_groups[plasmid.bag].append(plasmid.to_dict())
             else:
                 raise ValueError("seems something doesnt have a bag! fix this")
 
@@ -352,7 +345,7 @@ class SampleCollection:
        Initialize a collection of samples from various input formats.
 
        Args:
-           samples: Can be one of the following:
+           samples input: Can be one of the following:
                - None: Creates empty collection
                - List of dicts: [{'volume': 1.5, 'date_created': '2024-01-01T10:00:00', 'date_modified': '2024-01-01T10:00:00'}, ...]
                - List of numbers: [1.5, 2.0, 3.5] (backward compatibility)
@@ -360,6 +353,7 @@ class SampleCollection:
                - Single dict: {'volume': 1.5, 'date_created': ..., 'date_modified': ...}
                - Single number: 1.5 (backward compatibility)
                - Empty list: [] -> empty collection
+        Returns a proper list of dicts with dmetadata
        """
     def __init__(self, samples=None):
         self._samples = self._parse_samples_input(samples)
@@ -459,7 +453,7 @@ class SampleCollection:
                  'date_modified': sample.date_modified.isoformat()} for sample in self._samples]
 
 
-    def sum_volumes(self):
+    def sum_sample_volumes(self):
         return sum(sample.volume for sample in self._samples)
 
 

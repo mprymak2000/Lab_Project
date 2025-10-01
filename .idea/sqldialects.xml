@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="SqlDialectMappings">
-    <file url="file://$PROJECT_DIR$/backend/business_logic_refactor.py" dialect="CouchbaseQuery" />
+    <file url="file://$PROJECT_DIR$/backend/plasmid_record_repository.py" dialect="CouchbaseQuery" />
   </component>
 </project>
