@@ -1,12 +1,10 @@
-import React, {useState, useEffect, useMemo, useCallback} from 'react'
+import React, {useState, useEffect} from 'react'
 import {PlasmidRecord} from "../../utils/PlasmidRecord.js";
-import { usePlasmidRecordInput } from '../../hooks/usePlasmidRecordInput.js';
 import ConfirmDialog, { PlasmidRecordPreview } from '../common/ConfirmDialog.jsx';
-import saveToDb from '../../utils/saveToDb.js';
+import { saveToDb } from '../../utils/api.js';
+import InputPlasmidRow from './AddPlasmidRecords/InputPlasmidRow.jsx';
 
-//TODO: same record validation (lot-sublot no duplicates).
-
-const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRefreshData }) => {
+const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRefreshRecords, availableBags }) => {
 
     const [recordsData, setRecordsData] = useState([new PlasmidRecord({})]);
     const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -125,14 +123,14 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
             // Clear the form on success
             setRecordsData([new PlasmidRecord({})]);
             //trigger data refresh in parent
-            onRefreshData();
+            onRefreshRecords();
         }
         catch (err) {
             console.error('Failed to save records:', err);
-            const errorMessage = err.message || 'Failed to save records';
+            const errorMessage = err.message || 'An unexpected error occured. Failed to save records. (dev reference: AddPlasmidRecords, confirmSave())';
             setSaveStatus({
                 type: 'error',
-                message: errorMessage
+                message: `Unexpected Error: ${errorMessage} (dev reference: AddPlasmidRecords, confirmSave())`
             });
         }
         //saveStatus and showSaveConfirm are cleared in confirm dialog when 'OK' is clicked
@@ -141,23 +139,26 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
     return (
         <>
             {/* Main Container */}
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-6xl mx-5">
                 {/* Header Section */}
-                <div className="mb-8">
-                    <h1 className="text-3xl font-bold text-slate-800 mb-2">Add New Plasmid Records</h1>
-                    <p className="text-slate-600">Create and organize new plasmid entries for laboratory storage</p>
+                <div className="mb-15 mt-10 -ml-12">
+                    <div className="inline-block px-5 py-3 rounded-r-xl shadow-[0_4px_12px_rgba(251,146,60,0.25)]" style={{backgroundImage: 'linear-gradient(to right, rgb(251 166 96), rgb(253 184 120))'}}>
+                        <h1 className=" ml-5 text-2xl font-bold text-white mb-1">Add New Plasmid Records</h1>
+                        <p className="ml-5 text-white text-sm font-medium">Create and organize new plasmid entries for laboratory storage</p>
+                    </div>
                 </div>
 
-                {/* Records Section */}
+                {/* Records Section w/ header */}
+                     {/* header */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-6">
-                    <div className="bg-gradient-to-r from-indigo-100 via-blue-50 to-slate-100 px-6 py-4 border-b border-slate-200">
-                        <h2 className="text-lg font-semibold text-slate-800">Plasmid Entries</h2>
-                        <p className="text-sm text-slate-600 mt-1">
+                    <div className="bg-gradient-to-r from-indigo-400 via-indigo-400 via-70% to-blue-400 px-6 py-4 border-b border-slate-200">
+                        <h2 className="text-lg font-bold text-white">Plasmid Entries</h2>
+                        <p className="text-sm font-medium text-white mt-1">
                             {recordsData.length} record{recordsData.length !== 1 ? 's' : ''} ready for processing
                         </p>
                     </div>
                     
-                    <div className="p-6">
+                    <div className="p-6 py-5 pb-15">
                         {/* Records List */}
                         <div className="space-y-4 mb-6">
                             {recordsData.map((record, index) => (
@@ -166,6 +167,7 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
                                     data = {record}
                                     onDataChange = {(updatedRecord) => updateRecord(index, updatedRecord)}
                                     onDelete = {() => deleteRecord(index)}
+                                    availableBags={availableBags}
                                 />
                             ))}
                         </div>
@@ -187,8 +189,8 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
                 
                 {/* Action Bar */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-6">
+                    <div className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex flex-wrap items-center gap-6">
                             <div className="flex items-center gap-2 text-sm text-slate-600">
                                 <div className="w-4 h-4 bg-emerald-500 rounded-full animate-pulse"></div>
                                 <span>{recordsData.filter(r => r.getValidationErrors().length === 0).length}/{recordsData.length} records ready to save</span>
@@ -198,8 +200,8 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
                                 <span>{recordsData.filter(r => r.getValidationErrors().length !== 0).length}/{recordsData.length} not ready</span>
                             </div>
                         </div>
-                        
-                        <div className="flex gap-4">
+
+                        <div className="flex flex-wrap gap-4">
                             <button
                                 onClick={handleCancel}
                                 disabled={!hasUnsavedChanges()}
@@ -305,234 +307,6 @@ const AddPlasmidRecords = ({ onUnsavedChangesCheck, onNavigationRequested, onRef
                 type="danger"
             />
         </>
-    )
-}
-
-{/*Reusing input plasmid logic using the hook. custom render jsx*/}
-const InputPlasmidRow = ({data, onDataChange, onDelete, onSave}) => {
-    const [conflictWarning, setConflictWarning] = useState('');
-    const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
-    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
-
-    const {
-        lotRef,
-        sublotRef,
-        sublotError,
-        lotError,
-        volumeErrors,
-        bagError,
-        showNotes,
-        setShowNotes,
-        handleLotChange,
-        handleSublotChange,
-        handleSublotKeyDown,
-        handleVolumeChange,
-        handleVolumeBlur,
-        addVolumeInput,
-        deleteVolumeInput,
-        handleBagChange,
-        handleBagBlur,
-        handleNotesChange,
-        hasErrors
-    } = usePlasmidRecordInput(data, onDataChange, onDelete, onSave);
-
-    // Debounced conflict checking function
-    const checkForConflicts = useCallback(
-        useMemo(() => {
-            let timeoutId;
-            return async (lot, sublot, currentBag) => {
-                if (timeoutId) clearTimeout(timeoutId);
-                
-                timeoutId = setTimeout(async () => {
-                    console.log('Conflict check triggered:', { lot, sublot, currentBag });
-                    if (lot && sublot && currentBag) {
-                        setIsCheckingConflicts(true);
-                        console.log('Starting conflict check for:', `${lot}-${sublot}`, 'in bag:', currentBag);
-                        try {
-                            const response = await fetch(`${API_BASE_URL}/api/search`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ plasmid_collection: `${lot}-${sublot}` })
-                            });
-                            
-                            if (response.ok) {
-                                const result = await response.json();
-                                console.log('Search result:', result);
-                                
-                                if (result.summary && result.summary.found > 0 && result.summary.bags) {
-                                    const existingBags = Object.keys(result.summary.bags);
-                                    console.log('Existing bags found:', existingBags);
-                                    console.log('Current bag (comparing):', currentBag.toUpperCase());
-                                    const conflictBags = existingBags.filter(bag => bag !== currentBag.toUpperCase());
-                                    console.log('Conflict bags:', conflictBags);
-                                    
-                                    if (conflictBags.length > 0) {
-                                        const warningMsg = `⚠️ Plasmid ${lot}-${sublot} already exists in bag(s): ${conflictBags.join(', ')}`;
-                                        console.log('Setting warning:', warningMsg);
-                                        setConflictWarning(warningMsg);
-                                    } else {
-                                        console.log('No conflicts, clearing warning');
-                                        setConflictWarning('');
-                                    }
-                                } else {
-                                    console.log('No plasmids found, clearing warning');
-                                    setConflictWarning('');
-                                }
-                            }
-                        } catch (error) {
-                            console.error('Error checking for conflicts:', error);
-                            // Don't show error to user, just clear any existing warning
-                            setConflictWarning('');
-                        } finally {
-                            setIsCheckingConflicts(false);
-                        }
-                    } else {
-                        setConflictWarning('');
-                        setIsCheckingConflicts(false);
-                    }
-                }, 500);
-            };
-        }, [API_BASE_URL]),
-        []
-    );
-
-    // Check for conflicts whenever lot, sublot, or bag changes
-    useEffect(() => {
-        if (data.lot && data.sublot && data.bag && !lotError && !sublotError && !bagError) {
-            checkForConflicts(data.lot, data.sublot, data.bag);
-        } else {
-            setConflictWarning('');
-            setIsCheckingConflicts(false);
-        }
-    }, [data.lot, data.sublot, data.bag, lotError, sublotError, bagError, checkForConflicts]);
-
-    return (
-        <div className="bg-gradient-to-r from-blue-100 via-indigo-75 to-slate-100 rounded-lg p-3 shadow-sm border border-slate-200 hover:shadow-md transition-all duration-200">
-            {/* Input Row */}
-            <div className="rounded px-2 text-sm flex gap-4 items-center">
-                {/* Left Container: Lot/Sublot/Volumes/Notes */}
-                <div className="flex flex-wrap items-center gap-6 gap-y-2 flex-1 min-w-0">
-                    {/* Lot-Sublot */}
-                    <div className="flex items-center gap-1">
-                        <input
-                            className={`w-20 px-1 py-1 bg-white text-s shadow-sm ${lotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${lotError ? 'border-red-500' : 'border-transparent'}`}
-                            placeholder="Lot"
-                            ref={lotRef}
-                            value={data.lot}
-                            onChange={handleLotChange}
-                            maxLength={4}
-                        />
-                        <span className="text-gray-400 text-s">-</span>
-                        <input
-                            className={`w-16 px-1 py-1 bg-white text-s shadow-sm ${sublotError ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${sublotError ? 'border-red-500' : 'border-transparent'}`}
-                            placeholder="Sublot"
-                            ref={sublotRef}
-                            value={data.sublot}
-                            onKeyDown={handleSublotKeyDown}
-                            onChange={handleSublotChange}
-                        />
-                    </div>
-
-                    {/* Volume Inputs */}
-                    <div className="flex items-center gap-1">
-                        {(data.samples).map((volume, index) => (
-                            <div key={index} className="relative">
-                                <input
-                                    className={`w-12 px-1 py-1 ${data.samples.length > 1 ? 'pr-4' : ''} bg-white text-s shadow-sm ${volumeErrors[index] ? 'focus:ring-1 focus:ring-red-500' : 'focus:ring-2 focus:ring-blue-400'} focus:outline-none placeholder-gray-400 rounded border ${volumeErrors[index] ? 'border-red-500' : 'border-transparent'}`}
-                                    placeholder={"mL"}
-                                    value={volume.volume === null ? '' : volume.volume}
-                                    autoFocus={index === data.samples.length - 1 && index > 0}
-                                    onChange={(e) => handleVolumeChange(index, e)}
-                                    onBlur={(e) => handleVolumeBlur(index, e)}
-                                />
-                                {/* Delete Volume Button - embedded inside input */}
-                                {data.samples.length > 1 && (
-                                    <button
-                                        type="button"
-                                        className={`absolute right-0 top-0 w-4 h-full rounded-r bg-red-50 text-red-500 hover:bg-red-500 hover:text-white focus:outline-none focus:ring-2 ${volumeErrors[index] ? 'focus:ring-red-500 border-t border-r border-b border-red-500' : 'focus:ring-blue-400'} flex items-center justify-center text-xs`}
-                                        onClick={() => deleteVolumeInput(index)}
-                                    >
-                                        ×
-                                    </button>
-                                )}
-                            </div>
-                        ))}
-
-                        {/* Add Volume Button */}
-                        {(data.samples).length < 3 && (
-                            <button
-                                type="button"
-                                className="py-2 w-8 h-8 text-gray-400 hover:text-blue-500 hover:bg-blue-50 border border-gray-300 hover:border-blue-400 focus:ring-2 focus:ring-blue-400 focus:outline-none rounded flex items-center justify-center text-lg font-semibold"
-                                onClick={addVolumeInput}
-                            >
-                                +
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Notes Button/Input */}
-                    {!showNotes ? (
-                        <button
-                            type="button"
-                            className="px-3 py-1 border border-dashed border-gray-300 text-gray-500 text-s rounded hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"
-                            onClick={() => setShowNotes(true)}
-                        >
-                            + Notes
-                        </button>
-                    ) : (
-                        <input
-                            className="flex-1 min-w-32 px-1 py-1 bg-white text-s shadow-sm focus:ring-2 focus:ring-blue-400 focus:outline-none placeholder-gray-400 rounded border border-transparent"
-                            placeholder="Notes (optional)"
-                            value={data.notes}
-                            autoFocus
-                            onChange={(e) => handleNotesChange(e.target.value)}
-                            onBlur={() => {
-                                if (!data.notes) setShowNotes(false);
-                            }}
-                        />
-                    )}
-                </div>
-
-                {/* Right Container: Bag, Delete */}
-                <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className="text-indigo-400 text-3xl flex items-center justify-center mr-4">→</span>
-                    <input
-                        className={`w-16 px-2 py-1.5 bg-white text-sm shadow-sm ${bagError ? 'focus:ring-2 focus:ring-rose-400 border-rose-400 bg-rose-50' : 'focus:ring-2 focus:ring-indigo-400 border-slate-200 focus:border-indigo-300'} focus:outline-none placeholder-slate-400 rounded-md border transition-all duration-200`}
-                        placeholder="Bag"
-                        value={data.bag}
-                        onChange={handleBagChange}
-                        onBlur={handleBagBlur}
-                    />
-
-                    {/* Delete Button */}
-                    <button
-                        type="button"
-                        className="px-2 py-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-300 focus:ring-2 focus:ring-rose-400 focus:outline-none rounded-md transition-all duration-200"
-                        onClick={onDelete}
-                    >
-                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            </div>
-            {/*Error messages*/}
-            {hasErrors && (
-                <div className="w-full text-xs text-rose-500 pt-2 px-2 order-last font-medium">
-                    {lotError || sublotError || bagError || volumeErrors[0] || volumeErrors[1] || volumeErrors[2]}
-                </div>
-            )}
-            
-            {/*Conflict warning*/}
-            {conflictWarning && (
-                <div className="w-full text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-2 mt-2 font-medium flex items-center gap-1">
-                    {isCheckingConflicts && (
-                        <div className="w-3 h-3 border border-amber-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
-                    )}
-                    <span>{conflictWarning}</span>
-                </div>
-            )}
-        </div>
     )
 }
 

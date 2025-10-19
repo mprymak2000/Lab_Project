@@ -16,20 +16,25 @@ const PlasmidRecordPreview = ({
     return (
         <div className={layout === 'stacked' ? 'p-3' : 'p-1'}>
             {showLabel && <div className={`text-xs font-semibold mb-2 ${textColor}`}>{label}</div>}
-            <div className={layout === 'stacked' ? 'space-y-2' : 'flex gap-2'}>
-                <div className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap min-w-16 text-center ${bgColor} ${textColor}`}>
-                    <span>{record?.getFullId()}</span>
+            <div className="space-y-2">
+                {/* Plasmid ID - First Line */}
+                <div className="flex justify-center">
+                    <div className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap min-w-16 text-center ${bgColor} ${textColor}`}>
+                        <span>{record?.getFullId()}</span>
+                    </div>
                 </div>
-                
-                {/* Individual Volume Samples */}
-                <div className="flex gap-1">
-                    {record?.samples?.map((vol, index) => (
-                        <div key={index} className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap text-center min-w-12 ${bgColor} ${textColor}`}>
-                            {vol.volume ? `${vol.volume}mL` : '—'}
-                        </div>
-                    ))}
+
+                {/* Individual Volume Samples - Second Line (wraps if needed) */}
+                <div className="flex justify-center">
+                    <div className={`flex gap-1 flex-wrap justify-center max-w-[8rem] ${record?.samples?.length > 1 ? 'p-2 rounded' : ''}`}>
+                        {record?.samples?.map((vol, index) => (
+                            <div key={index} className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap text-center min-w-12 ${bgColor} ${textColor}`}>
+                                {vol.volume ? `${vol.volume}mL` : '—'}
+                            </div>
+                        ))}
+                    </div>
                 </div>
-                
+
                 {notesChanged && (
                     <div className={`font-mono font-semibold px-2 py-1 rounded text-xs whitespace-nowrap w-20 text-center ${bgColor} ${textColor}`}>
                         {label === "Original" ? "Note" : "New Note"}
@@ -118,7 +123,7 @@ const ConfirmDialog = ({
 
                     {/* Action Buttons */}
                     <div className="flex gap-3 p-6 pt-6 justify-end">
-                        {cancelText !== "" && (
+                        {cancelText !== "" || cancelText !== null && (
                             <button
                                 onClick={onCancel}
                                 className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-400"

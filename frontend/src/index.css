@@ -4,3 +4,12 @@
 @theme {
     --font-family-sans: 'Roboto', sans-serif;
 }
+
+/* Limit select dropdown height */
+select.dropdown-limited {
+    max-height: 2.5rem;
+}
+
+select.dropdown-limited option {
+    max-height: 100px;
+}

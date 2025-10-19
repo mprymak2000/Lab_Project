@@ -12,9 +12,9 @@ def reset_mock_database():
     """Reset mock database to initial state"""
     global MOCK_DATABASE
     MOCK_DATABASE = [
-        {'lot': 5317, 'sub_lot': 1, 'bag': 'c1', 'volume_1': 2.5, 'volume_2': 1.0, 'notes': 'Test plasmid'},
+        {'lot': 5317, 'sub_lot': 1, 'bag': 'c1', 'volume_1': 2.5, 'volume_2': 1.0, 'notes': 'Test record'},
         {'lot': 5317, 'sub_lot': 2, 'bag': 'c1', 'volume_1': 3.0, 'volume_2': None, 'notes': None},
-        {'lot': 5332, 'sub_lot': 1, 'bag': 'c2', 'volume_1': 1.5, 'volume_2': 2.0, 'notes': 'Another plasmid'},
+        {'lot': 5332, 'sub_lot': 1, 'bag': 'c2', 'volume_1': 1.5, 'volume_2': 2.0, 'notes': 'Another record'},
         {'lot': 4773, 'sub_lot': 1, 'bag': 'c3', 'volume_1': 2.0, 'volume_2': None, 'notes': None},
         {'lot': 3380, 'sub_lot': 1, 'bag': 'c2', 'volume_1': 1.0, 'volume_2': None, 'notes': 'Same bag as 5332-1'},
     ]
@@ -40,7 +40,7 @@ def mock_execute_sql(params=None, function_name='find_plasmids', query=None):
             return results
 
     elif query and "SELECT * FROM plasmids WHERE lot = %s AND sub_lot = %s" in query:
-        # Single plasmid search
+        # Single record search
         if params and len(params) >= 2:
             lot, sublot = params[0], params[1]
             for row in MOCK_DATABASE:
@@ -160,10 +160,10 @@ def test_full_workflow():
     print("\n📊 Initial state:")
     show_mock_database()
 
-    # Step 1: Add a new plasmid
-    print("\n🔄 Step 1: Adding new plasmid 9999-1...")
+    # Step 1: Add a new record
+    print("\n🔄 Step 1: Adding new record 9999-1...")
     try:
-        add_plasmid_by_string("9999-1", 2.5, None, "New test plasmid")
+        add_plasmid_by_string("9999-1", 2.5, None, "New test record")
         print("✅ Add completed")
     except Exception as e:
         print(f"❌ Add failed: {e}")
@@ -171,7 +171,7 @@ def test_full_workflow():
     print("\n📊 After adding 9999-1:")
     show_mock_database()
 
-    # Step 2: Search for the new plasmid
+    # Step 2: Search for the new record
     print("\n🔄 Step 2: Searching for 9999-1...")
     try:
         result = batch_search_plasmids("9999-1")
@@ -179,7 +179,7 @@ def test_full_workflow():
     except Exception as e:
         print(f"❌ Search failed: {e}")
 
-    # Step 3: Modify the new plasmid (should work now!)
+    # Step 3: Modify the new record (should work now!)
     print("\n🔄 Step 3: Modifying 9999-1 (should work now)...")
     try:
         modify_plasmid_by_id("9999-1", 3.0, 1.5, "Updated volumes")
@@ -190,7 +190,7 @@ def test_full_workflow():
     print("\n📊 After modifying 9999-1:")
     show_mock_database()
 
-    # Step 4: Delete the plasmid
+    # Step 4: Delete the record
     print("\n🔄 Step 4: Deleting 9999-1...")
     try:
         delete_plasmid_by_id("9999-1")
@@ -202,14 +202,14 @@ def test_full_workflow():
     show_mock_database()
 
 def test_add_plasmid():
-    """Test add plasmid business logic"""
+    """Test add record business logic"""
     print("\n=== Testing Add Plasmid Business Logic ===")
 
     from plasmid_record_repository import add_plasmid_by_string
 
     test_cases = [
-        ("9999-1", 2.5, None, "New plasmid"),      # Should create new
-        ("5317-1", 1.5, None, "Existing plasmid"), # Should fail - has 2 volumes
+        ("9999-1", 2.5, None, "New record"),      # Should create new
+        ("5317-1", 1.5, None, "Existing record"), # Should fail - has 2 volumes
     ]
 
     for plasmid_str, volume1, volume2, notes in test_cases:
@@ -234,7 +234,7 @@ if __name__ == "__main__":
         test_full_workflow()
 
         print("\n" + "=" * 30)
-        print("Running add plasmid test...")
+        print("Running add record test...")
 
         # Reset database for individual test
         reset_mock_database()

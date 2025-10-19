@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a lab plasmid management system with a React frontend and Flask backend, designed for tracking cesium chloride plasmids in laboratory storage bags. The system allows searching, adding, modifying, and deleting plasmid records stored in a PostgreSQL database.
+This is a lab record management system with a React frontend and Flask backend, designed for tracking cesium chloride plasmids in laboratory storage bags. The system allows searching, adding, modifying, and deleting record records stored in a PostgreSQL database.
 
 ## Architecture
 
@@ -49,9 +49,9 @@ docker-compose logs backend  # View backend logs
 The Flask backend exposes these REST endpoints:
 - `GET /health` - Health check
 - `POST /api/search` - Search plasmids by collection
-- `POST /api/add` - Add new plasmid record
-- `PUT /api/modify` - Modify existing plasmid
-- `DELETE /api/delete` - Delete plasmid record
+- `POST /api/add` - Add new record record
+- `PUT /api/modify` - Modify existing record
+- `DELETE /api/delete` - Delete record record
 
 ## Key Files
 

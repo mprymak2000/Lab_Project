@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { usePlasmidRecordInput } from '../../hooks/usePlasmidRecordInput.js'
-import { Save, X } from 'lucide-react'
-import { PlasmidRecord } from '../../utils/PlasmidRecord.js'
-import saveToDb from "../../utils/saveToDb.js";
+import { usePlasmidRecordInput } from '../../../../hooks/usePlasmidRecordInput.js'
+import { Save, X, AlertTriangle } from 'lucide-react'
+import { PlasmidRecord } from '../../../../utils/PlasmidRecord.js'
+import { saveToDb } from "../../../../utils/api.js";
 
 const AddBagCardRow = ({ bagName, onRecordAdded, forceOpen, onClose}) => {
     const [newRecord, setNewRecord] = useState(null);
@@ -23,7 +23,7 @@ const AddBagCardRow = ({ bagName, onRecordAdded, forceOpen, onClose}) => {
     const handleAddPlasmid = () => {
         setNewRecord(new PlasmidRecord({ 
             bag: bagName,
-            // initializing volume for instant user reesponse
+            // initializing volume for instant user response
             // b/c no refresh triggered (doesnt pull from database instantly)
             samples: [{volume: null, date_created: new Date().toISOString(), date_modified: new Date().toISOString()}]
         }));
@@ -133,11 +133,24 @@ const AddBagCardRowForm = ({ data, onDataChange, onSave, onCancel }) => {
         deleteVolumeInput,
         handleNotesChange,
         hasErrors,
-        isValid
+        isValid,
+        conflictWarning,
+        isCheckingConflicts,
+        validateAllFields,
     } = usePlasmidRecordInput(data, onDataChange, onCancel, onSave);
 
+    const handleFormBlur = (e) => {
+        // Only trigger if focus is leaving the entire form
+        if (!e.currentTarget.contains(e.relatedTarget)) {
+            validateAllFields();
+        }
+    };
+
     return (
-        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 shadow-md">
+        <div
+            className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg p-3 shadow-md"
+            onBlur={handleFormBlur}
+        >
             <div className="space-y-3">
                 {/* Row 1: Lot - Sublot */}
                 <div className="flex items-center gap-2">
@@ -238,10 +251,20 @@ const AddBagCardRowForm = ({ data, onDataChange, onSave, onCancel }) => {
                 {/* Action Buttons and Error Messages */}
                 <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-200">
                     {/* Error Messages */}
-                    <div className="flex-1">
+                    <div className="flex-1 space-y-1">
                         {hasErrors && (
                             <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
                                 {lotError || sublotError || volumeErrors.find(err => err !== '')}
+                            </div>
+                        )}
+                        {conflictWarning && (
+                            <div className="text-xs text-yellow-600 px-2 py-1 font-medium flex items-center gap-1">
+                                {isCheckingConflicts ? (
+                                    <div className="w-3 h-3 border border-yellow-500 border-t-transparent rounded-full animate-spin flex-shrink-0"></div>
+                                ) : (
+                                    <AlertTriangle size={16} className="flex-shrink-0" />
+                                )}
+                                <span>{conflictWarning}</span>
                             </div>
                         )}
                     </div>
@@ -252,20 +275,20 @@ const AddBagCardRowForm = ({ data, onDataChange, onSave, onCancel }) => {
                             type="button"
                             onClick={() => onSave && onSave(data)}
                             disabled={!isValid || hasErrors}
-                            className={`p-1.5 rounded text-xs font-medium w-7 h-7 flex items-center justify-center ${
+                            className={`rounded text-xs font-medium w-6 h-6 flex items-center justify-center ${
                                 isValid && !hasErrors
                                     ? 'text-green-600 hover:bg-green-100 enabled:hover:bg-green-200'
                                     : 'text-gray-400 cursor-not-allowed'
                             }`}
                         >
-                            <Save size={14} />
+                            <Save size={20} />
                         </button>
                         <button
                             type="button"
                             onClick={onCancel}
-                            className="text-gray-600 hover:bg-gray-300 p-1.5 rounded text-xs font-medium w-7 h-7 flex items-center justify-center"
+                            className="text-gray-600 hover:bg-gray-300 rounded text-xs font-medium w-6 h-6 flex items-center justify-center"
                         >
-                            <X size={14} />
+                            <X size={20} />
                         </button>
                     </div>
                 </div>

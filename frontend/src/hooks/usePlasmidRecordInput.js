@@ -1,8 +1,9 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import { PlasmidRecord } from '../utils/PlasmidRecord.js';
+import { searchPlasmids } from '../utils/api.js';
 
 /*
-Custom hook to manage the state and logic for any new plasmid record input.
+Custom hook to manage the state and logic for any new record record input.
 In Lab_Project, it's used in addplasmidmodal(bulk adding) and bagcard (for quick adding).
 
 The logic uses PlasmidRecord.js class for validation.
@@ -33,6 +34,8 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
     const [volumeErrors, setVolumeErrors] = useState(['', '', '']);
     const [bagError, setBagError] = useState('');
     const [showNotes, setShowNotes] = useState(false);
+    const [conflictWarning, setConflictWarning] = useState('');
+    const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
 
     const handleLotChange = (e) => {
         const value = e.target.value;
@@ -44,7 +47,7 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
         const error = initialData.validateLot(value);
         setLotError(error);
 
-        // make plasmid record with strings. validation unenforced. allows user to type freely, prevent save if error
+        // make record record with strings. validation unenforced. allows user to type freely, prevent save if error
         const updatedRecord = new PlasmidRecord({...initialData, lot: value});
         onDataChange(updatedRecord);
 
@@ -106,26 +109,20 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
         // Format if no errors
         if (value && volumeErrors[index] === '') {
             let formattedValue = value;
-            // Add .0 to whole numbers
-            if (!value.includes('.')) {
+            // Add .0 to whole numbers (e.g., "3" -> "3.0")
+            if (!value.includes('.') && /^\d+$/.test(value)) {
                 formattedValue = value + '.0';
             }
-            // Add 0 before decimal if starts with .
-            if (value.startsWith('.')) {
-                formattedValue = '0' + value;
+            // Add trailing 0 if ends with decimal point (e.g., "5." -> "5.0")
+            else if (value.endsWith('.')) {
+                formattedValue = value + '0';
             }
 
-            const newSamples = [...initialData.samples];
-            const oldVolume = newSamples[index];
-            newSamples[index] = {...oldVolume, volume: formattedValue, date_modified: new Date().toISOString()};
-            
-            const updatedRecord = new PlasmidRecord({...initialData, samples: newSamples});
-            onDataChange(updatedRecord);
-        }
-
-        // Auto-remove empty volumes (except the first one)
-        if (!value && index > 0) {
-            deleteVolumeInput(index);
+            // Update if we formatted something
+            if (formattedValue !== value) {
+                e.target.value = formattedValue;
+                handleVolumeChange(index, e);
+            }
         }
     };
 
@@ -175,6 +172,60 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
         }
     };
 
+    // Validate all fields and update error states
+    const validateAllFields = () => {
+        const lotErr = initialData.validateLot(initialData.lot);
+        const sublotErr = initialData.validateSublot(initialData.sublot);
+        const bagErr = initialData.validateBag(initialData.bag);
+
+        // Validate each sample individually to get array of errors
+        const volErrors = initialData.samples.map(sample =>
+            initialData.validateVolume(sample.volume)
+        );
+
+        setLotError(lotErr);
+        setSublotError(sublotErr);
+        setBagError(bagErr);
+        setVolumeErrors(volErrors);
+    };
+
+    // Conflict checking function
+    const checkForConflicts = useCallback(async () => {
+        setIsCheckingConflicts(true);
+        try {
+            // Search for all sublots of this lot number to detect conflicts
+            const result = await searchPlasmids(initialData.lot);
+            
+            if (result && result.bags && Object.keys(result.bags).length > 0) {
+                const existingBags = Object.keys(result.bags);
+                const conflictBags = existingBags.filter(bag => bag !== initialData.bag.toUpperCase());
+                
+                if (conflictBags.length > 0) {
+                    setConflictWarning(`Lot ${initialData.lot} already exists in different bag(s): ${conflictBags.join(', ')}`);
+                } else {
+                    setConflictWarning('');
+                }
+            } else {
+                setConflictWarning('');
+            }
+        } catch (error) {
+            console.error('Error checking for conflicts:', error);
+            setConflictWarning('');
+        } finally {
+            setIsCheckingConflicts(false);
+        }
+    }, [initialData.lot, initialData.sublot, initialData.bag]);
+
+    // Check for conflicts whenever record becomes valid
+    useEffect(() => {
+        if (initialData.isValid()) {
+            checkForConflicts().catch(console.error);
+        } else {
+            setConflictWarning('');
+            setIsCheckingConflicts(false);
+        }
+    }, [initialData.lot, initialData.sublot, initialData.bag, initialData.samples, checkForConflicts]);
+
     // Return all the state and handlers
     return {
         // Refs
@@ -188,6 +239,8 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
         bagError,
         showNotes,
         setShowNotes,
+        conflictWarning,
+        isCheckingConflicts,
         
         // Handlers
         handleLotChange,
@@ -202,12 +255,14 @@ export const usePlasmidRecordInput = (initialData, onDataChange, onDelete, onSav
         handleNotesChange,
         handleSave,
         handleCancel,
+        validateAllFields,
         
         // Data
         data: initialData,
         
         // Computed
         hasErrors: lotError || sublotError || bagError || volumeErrors.some(err => err !== ''),
-        isValid: initialData.isValid()
+        isValid: initialData.isValid(),
+        hasConflictWarning: conflictWarning !== ''
     };
 };

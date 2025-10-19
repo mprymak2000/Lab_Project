@@ -12,14 +12,6 @@ services:
       - ./Data:/data
       - ./Data:/docker-entrypoint-initdb.d
 
-  pgadmin:
-    image: dpage/pgadmin4
-    ports:
-      - "8080:80"
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@lab.com
-      PGADMIN_DEFAULT_PASSWORD: admin
-
   backend:
     build: ./backend
     ports:
@@ -28,8 +20,10 @@ services:
       - database
     volumes:
       - ./Data:/data
+      - ./backend:/app
     environment:
       - DATABASE_URL=postgresql://lab_user:lab_pass@database:5432/lab_db
+      - FLASK_ENV=development
 
   frontend:
     build: ./frontend
@@ -37,8 +31,21 @@ services:
       - "3000:3000"
     depends_on:
       - backend
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
     environment:
       - VITE_API_BASE_URL=http://localhost:5000
 
 volumes:
   lab_data:
+
+
+
+  #pgadmin:
+  #  image: dpage/pgadmin4
+  #  ports:
+  #   - "8080:80"
+  #  environment:
+  #   PGADMIN_DEFAULT_EMAIL: admin@lab.com
+  #   PGADMIN_DEFAULT_PASSWORD: admin

@@ -11,11 +11,11 @@ def test_volume_edge_cases():
     """Test all the weird volume scenarios"""
     print("=== Testing Volume Edge Cases ===")
 
-    # Test 1: Create plasmid without volume_1 (should this be allowed?)
-    print("\n1. Creating plasmid without volume_1:")
+    # Test 1: Create record without volume_1 (should this be allowed?)
+    print("\n1. Creating record without volume_1:")
     try:
         plasmid = Plasmid(5317, 1, "c1", volume_1=None)
-        print(f"❌ PROBLEM: Created plasmid without volume_1: {plasmid}")
+        print(f"❌ PROBLEM: Created record without volume_1: {plasmid}")
         print(f"   Volume 1: {plasmid.volume_1}, Volume 2: {plasmid.volume_2}")
     except Exception as e:
         print(f"✅ Correctly prevented: {e}")
@@ -24,7 +24,7 @@ def test_volume_edge_cases():
     print("\n2. Adding volume_2 without volume_1:")
     try:
         plasmid = Plasmid.from_database(5317, 1, "c1", volume_1=None, volume_2=None)
-        print(f"Database plasmid created: v1={plasmid.volume_1}, v2={plasmid.volume_2}")
+        print(f"Database record created: v1={plasmid.volume_1}, v2={plasmid.volume_2}")
 
         plasmid.add_volume(2.5)  # This should become volume_1 or volume_2?
         print(f"After add_volume(2.5): v1={plasmid.volume_1}, v2={plasmid.volume_2}")
@@ -85,8 +85,8 @@ def test_database_scenarios():
     """Test scenarios that might come from database"""
     print("\n=== Testing Database Load Scenarios ===")
 
-    # Test 1: Load plasmid with no volumes (old data?)
-    print("\n1. Database plasmid with no volumes:")
+    # Test 1: Load record with no volumes (old data?)
+    print("\n1. Database record with no volumes:")
     try:
         plasmid = Plasmid.from_database(5317, 1, "c1", volume_1=None, volume_2=None)
         print(f"✅ Loaded: {plasmid}")
@@ -94,8 +94,8 @@ def test_database_scenarios():
     except Exception as e:
         print(f"❌ Error: {e}")
 
-    # Test 2: Load plasmid with only volume_2 (weird data?)
-    print("\n2. Database plasmid with only volume_2:")
+    # Test 2: Load record with only volume_2 (weird data?)
+    print("\n2. Database record with only volume_2:")
     try:
         plasmid = Plasmid.from_database(5317, 1, "c1", volume_1=None, volume_2=2.5)
         print(f"Loaded: {plasmid}")
@@ -107,8 +107,8 @@ def test_batch_search():
     """Test batch search and grouping functionality"""
     print("\n=== Testing Batch Search & Grouping ===")
 
-    # Create a collection of plasmids with different bags
-    print("\n1. Creating test collection with different bags:")
+    # Create a plasmid_collection of plasmids with different bags
+    print("\n1. Creating test plasmid_collection with different bags:")
     test_plasmids = [
         Plasmid.from_database(5317, 1, "c1", 2.5, 1.0),
         Plasmid.from_database(5317, 2, "c1", 1.5),  # Same bag
@@ -144,8 +144,8 @@ def test_collection_operations():
     """Test PlasmidCollection edge cases"""
     print("\n=== Testing Collection Operations ===")
 
-    # Test 1: Empty collection
-    print("\n1. Empty collection:")
+    # Test 1: Empty plasmid_collection
+    print("\n1. Empty plasmid_collection:")
     try:
         empty_collection = PlasmidCollection()
         print(f"Length: {len(empty_collection)}")
@@ -230,16 +230,16 @@ from plasmid_records import Plasmid, PlasmidCollection
 def create_mock_database():
     """Create a mock database with 10 plasmids in different bags"""
     database_plasmids = [
-        Plasmid.from_database(5317, 1, "c1", 2.5, 1.0, "First plasmid"),
+        Plasmid.from_database(5317, 1, "c1", 2.5, 1.0, "First record"),
         Plasmid.from_database(5317, 2, "c1", 3.0, None, "Same bag as 5317-1"),
         Plasmid.from_database(5332, 1, "c2", 1.5, 2.0, "Different bag"),
         Plasmid.from_database(5332, 2, "c10", 4.0, None, "Test natural sorting"),
-        Plasmid.from_database(4773, 1, "c3", 2.0, 1.5, "Another plasmid"),
+        Plasmid.from_database(4773, 1, "c3", 2.0, 1.5, "Another record"),
         Plasmid.from_database(3380, 1, "c2", 1.0, None, "Same bag as 5332-1"),
         Plasmid.from_database(3380, 2, "c4", 3.5, 2.5, "Different bag"),
         Plasmid.from_database(5280, 1, "c5", 2.8, None, "Single volume"),
         Plasmid.from_database(6100, 1, "c11", 1.2, 0.8, "Test c11 sorting"),
-        Plasmid.from_database(7200, 1, "c6", 4.5, 3.0, "Last plasmid")
+        Plasmid.from_database(7200, 1, "c6", 4.5, 3.0, "Last record")
     ]
     return PlasmidCollection(database_plasmids)
 
@@ -390,12 +390,12 @@ def test_bag_grouping():
         print(f"❌ Error: {e}")
 
 def test_duplicates_in_request():
-    """Test when user requests the same plasmid multiple times"""
+    """Test when user requests the same record multiple times"""
     print("\n=== Test 5: Duplicate Requests ===")
 
     database = create_mock_database()
 
-    # Request same plasmid multiple times
+    # Request same record multiple times
     user_input = "5317-1, 5332-1, 5317-1, 4773-1, 5317-1"
     print(f"Searching for: {user_input}")
 
@@ -431,7 +431,7 @@ def test_edge_case_inputs():
     database = create_mock_database()
 
     edge_cases = [
-        ("Single plasmid", "5317-1"),
+        ("Single record", "5317-1"),
         ("Extra spaces", "5317-1,   5332-1  ,4773-1"),
         ("Mixed separators", "5317-1, 5332-1 4773-1"),
         ("Trailing comma", "5317-1, 5332-1,"),

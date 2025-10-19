@@ -6,12 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy source code
+# Copy source code (will be overridden by volume mount in dev)
 COPY . .
 
-# Build the app
-RUN npm run build
-
-# Serve static files
+# Run dev server for hot reload
 EXPOSE 3000
-CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "3000"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "3000"]

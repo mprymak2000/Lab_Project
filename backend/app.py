@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-from plasmid_record_repository import get_all_plasmids, find_plasmids, add_plasmid_record, modify_plasmid_record, delete_plasmid_record, check_database_health
-from plasmid_records import Plasmid, PlasmidCollection, SampleCollection
+from plasmid_record_repository import get_all_plasmids, find_plasmids, add_plasmid_record, modify_plasmid_record, delete_plasmid_record, check_database_health, find_plasmids_by_bag, find_plasmids_by_lot
+from plasmid_records import Plasmid, PlasmidCollection
 
 app = Flask(__name__)
 CORS(app)
@@ -11,7 +11,7 @@ CORS(app)
 def health_check():
     return jsonify({
         'success': True,
-        'message': 'plasmid api is running'
+        'message': 'record api is running'
     }), 200
 
 @app.route('/health/database', methods=['GET'])
@@ -50,31 +50,87 @@ def get_bags():
 
 @app.route('/api/search', methods=['POST'])
 def search_records():
+    """
+    Unified search function with input parsing, validation, and routing
+
+    Input patterns:
+    - "5317" -> search by lot only
+    - "5317-1, 5317-2" -> search by specific lot-sublot combinations
+    - "C25" -> search by bag
+    """
+    import re
     try:
         data = request.get_json()
-        if not data or 'plasmid_collection' not in data:
-            return jsonify({"error": "Missing 'plasmid_collection' field"}), 400
+        if not data or 'user_input' not in data:
+            return jsonify({"error": "Missing 'user_input' field"}), 400
 
-        user_input = data['plasmid_collection'].strip()
-        
-        # Input validation in Flask via plasmid_collection instance
+        user_input = data['user_input'].strip()
+
+        # Clean up trailing dashes not followed by digits or commas
+        # e.g., "3333-" -> "3333", "111-" -> "111"
+        # but keep "3333-1" and "111-1, 222-2"
+        user_input = re.sub(r'(\d+)-(?!\d)', r'\1', user_input)
+
+        summary = {}
+
+        # Input validation and routing:
+
+        #empty?
         if not user_input:
             return jsonify({"error": "Search input cannot be empty"}), 400
-        user_input_collection = PlasmidCollection.from_user_input(user_input)
-        lots, sublots = user_input_collection.get_lots_sublots()
-        results = find_plasmids(lots, sublots)
 
+        #bag search route - find all records for a bag
+        if re.match(r'^[Cc]\d+$', user_input):
+            # Validate bag format using Plasmid's validation
+            validated_bag = Plasmid.validate_bag(user_input)
+            results = find_plasmids_by_bag(validated_bag)
+
+        #lot search route - find all variants for a lot number
+        elif re.match(r'^\d+$', user_input):
+            # Validate lot format using Plasmid's validation
+            validated_lot = Plasmid.validate_lot(user_input)
+            results = find_plasmids_by_lot(validated_lot)
+        # Otherwise, treat as record collection (lot-sublot combinations)
+        else:
+            try:
+                # Use existing PlasmidCollection parsing (which does its own validation)
+                # this is instantiated using factory function so we need try catch
+                user_input_collection = PlasmidCollection.from_user_input(user_input)
+                results = find_plasmids(user_input_collection)
+                summary = user_input_collection.to_dict(results)
+            except Exception as e:
+                raise ValueError(f"Invalid search input format: {user_input}. Expected formats: '5317', '5317-1', '5317-1, 5317-2', or 'C25'. Error: {str(e)}")
+
+        # For bag/lot searches, create consistent summary format
+        if not summary:
+            summary = {
+                "bags": results.group_by_bags(),
+                "found": f"{len(results)}"
+            }
+
+        ##Summary groups by bags and shows found count. results ungrouped
         return jsonify({
             "success": True,
-            "summary": user_input_collection.to_dict(results),
-            "result": [plasmid.to_dict() for plasmid in results]
+            "summary": summary,
+            "results": [plasmid.to_dict() for plasmid in results]
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/getCheckedOut', methods=['GET'])
+def get_checked_out_samples():
+    try:
+        checked_out_samples = find_plasmids(filters={"checked_out": True})
+        return jsonify({
+            "success": True,
+            "data": checked_out_samples.group_by_bags()
         }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 
-#todo: this will require bag to be passed. means frontend will need to call and validate bag
 @app.route('/api/add', methods=['POST'])
 def add_record():
     try:
@@ -95,10 +151,10 @@ def add_record():
             if not record or 'lot' not in record or 'sublot' not in record or 'samples' not in record or 'bag' not in record:
                 return jsonify({"error": f"Record {i+1}: Missing 'lot', 'sublot', 'samples' or 'bag' field"}), 400
 
-            # Validate samples before creating plasmid
+            # Validate samples before creating record
             samples = record.get('samples')
             if not samples or (isinstance(samples, list) and len(samples) == 0):
-                return jsonify({"error": f"Record {i+1}: Cannot add plasmid without any samples/volumes"}), 400
+                return jsonify({"error": f"Record {i+1}: Cannot add record without any samples/volumes"}), 400
 
             validated_plasmid = Plasmid(**record)
             validated_plasmids.append(validated_plasmid)
@@ -127,19 +183,33 @@ def add_record():
 def modify_record():
     try:
         data = request.get_json()
-        if not data or 'lot' not in data or 'sublot' not in data:
-            return jsonify({"error": "Missing 'lot', 'sublot' fields"}), 400
+        if not data or 'updated' not in data or 'previous' not in data:
+            return jsonify({"error": "Missing 'updated' or 'previous' record records"}), 400
 
-        validated_plasmid = Plasmid(**data)
-        modify_plasmid_record(validated_plasmid)
+        updated, previous = data.get('updated'), data.get('previous')
+        if 'bag' not in previous or 'lot' not in previous or 'sublot' not in previous:
+            return jsonify({"error": "Plasmid record to be updated is missing crucial fields: 'lot', 'sublot' or 'bag' for previous record"}), 400
+
+        if 'bag' not in updated or 'lot' not in updated or 'sublot' not in updated:
+            return jsonify({"error": "Updated record record is missing crucial fields: 'lot', 'sublot' or 'bag' for updated record"}), 400
+
+        updated_plasmid = Plasmid(**data['updated'])
+        previous_plasmid = Plasmid(**data['previous'])
+
+        if str(updated_plasmid) != str(previous_plasmid):
+            return jsonify({"Cannot change lot-sublot. If the id changed, please delete old record and make a new one"}), 400
+
+        modify_plasmid_record(updated_plasmid, previous_plasmid)
 
         return jsonify({
             "success": True,
-            "message": f"Plasmid {data['lot']}-{data['sublot']} successfully updated"
+            "message": f"Plasmid {updated_plasmid.lot}-{updated_plasmid.sublot} successfully updated"
         }), 201
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": str
+
+        (e)}), 500
 
 
 @app.route('/api/delete', methods=['DELETE'])
@@ -159,6 +229,90 @@ def delete_record():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+@app.route('/api/checkout', methods=['POST'])
+def checkout_sample():
+    """
+        Check out a sample - mark it as taken from freezer
+        Expected payload:
+        {
+            "record": { full record object },
+            "sample_index": 0,
+            "checked_out_by": "John Doe"
+        }
+        """
+    try:
+        data = request.get_json()
+        if not data or 'record' not in data or 'sample_index' not in data or 'checked_out_by' not in data:
+            return jsonify({"error": "Missing required fields: 'record', 'sample_index', or 'checked_out_by'"}), 400
+
+        # Create record from full object
+        plasmid = Plasmid(**data['record'])
+
+        sample_index = int(data['sample_index'])
+        if sample_index >= len(plasmid.samples) or sample_index < 0:
+            return jsonify({"error": f"Invalid sample_index {sample_index}. Must be between 0 and {len(plasmid.samples)-1}"}), 400
+
+        #update checkout status
+        sample = plasmid.samples[sample_index]
+        if sample.is_checked_out:
+            return jsonify({"error": f"Sample at index {sample_index} is already checked out by {sample.checked_out_by}"}), 400
+
+        from datetime import datetime
+        sample.is_checked_out = True
+        sample.checked_out_by = data['checked_out_by']
+        sample.checked_out_at = datetime.now()
+
+        #save
+        modify_plasmid_record(plasmid)
+        return jsonify({
+            "success": True,
+            "message": f"Sample {sample_index} of record {plasmid.lot}-{plasmid.sublot} checked out by {data['checked_out_by']}"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/api/checkin', methods=['POST'])
+def checkin_sample():
+    """
+        Check in a sample - mark it as returned to freezer
+        Expected payload:
+        {
+            "record": { full record object },
+            "sample_index": 0
+        }
+        """
+    try:
+        data = request.get_json()
+        if not data or 'record' not in data or 'sample_index' not in data:
+            return jsonify({"error": "Missing required fields: 'record', 'sample_index'"}), 400
+
+        # Create record from full object
+        plasmid = Plasmid(**data['record'])
+
+        sample_index = int(data['sample_index'])
+        if sample_index >= len(plasmid.samples) or sample_index < 0:
+            return jsonify({"error": f"Invalid sample_index {sample_index}. Must be between 0 and {len(plasmid.samples)-1}"}), 400
+
+        #update checkin status
+        sample = plasmid.samples[sample_index]
+        if not sample.is_checked_out:
+            return jsonify({"error": f"Sample at index {sample_index} is not checked out"}), 400
+
+        from datetime import datetime
+        sample.is_checked_out = False
+        sample.checked_in_at = datetime.now()
+        # Keep checked_out_by and checked_out_at for history
+
+        #save
+        modify_plasmid_record(plasmid)
+        return jsonify({
+            "success": True,
+            "message": f"Sample {sample_index} of record {plasmid.lot}-{plasmid.sublot} checked in successfully"
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 
 @app.errorhandler(404)
 def not_found(error):

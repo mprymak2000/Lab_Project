@@ -51,7 +51,11 @@ def create_new_schema():
                     plasmid_id INTEGER NOT NULL REFERENCES plasmids(id) ON DELETE CASCADE,
                     volume DECIMAL(10,1) NOT NULL,
                     date_created TIMESTAMP DEFAULT NOW(),
-                    date_modified TIMESTAMP DEFAULT NOW()
+                    date_modified TIMESTAMP DEFAULT NOW(),
+                    is_checked_out BOOLEAN DEFAULT FALSE,
+                    checked_out_by VARCHAR(100),
+                    checked_out_at TIMESTAMP,
+                    checked_in_at TIMESTAMP
                 )
             """)
             
@@ -59,6 +63,7 @@ def create_new_schema():
             cur.execute("CREATE INDEX idx_plasmids_lot_sublot ON plasmids(lot, sublot)")
             cur.execute("CREATE INDEX idx_plasmids_bag ON plasmids(bag)")
             cur.execute("CREATE INDEX idx_samples_plasmid ON samples(plasmid_id)")
+            cur.execute("CREATE INDEX idx_samples_checked_out ON samples(is_checked_out) WHERE is_checked_out = TRUE")
             
             conn.commit()
             print("✅ New schema created successfully")
@@ -71,9 +76,10 @@ def create_new_schema():
         conn.close()
 
 def parse_volumes(volume1, volumes_str):
-    """Parse volume1 and additional volumes from CSV"""
-    volumes = []
-    
+    """Parse volume1 and additional volumes from CSV into sample dicts with metadata"""
+    samples = []
+    migration_time = datetime.now()
+
     # Handle primary volume
     if volume1 and str(volume1).strip() not in ('', 'null', 'none'):
         volume1_str = str(volume1).strip()
@@ -83,26 +89,50 @@ def parse_volumes(volume1, volumes_str):
             volume_parts = [v.strip() for v in volume1_str.split(',') if v.strip()]
             for vol in volume_parts:
                 try:
-                    volumes.append(float(vol))
+                    samples.append({
+                        'volume': float(vol),
+                        'date_created': migration_time,
+                        'date_modified': migration_time,
+                        'is_checked_out': False,
+                        'checked_out_by': None,
+                        'checked_out_at': None,
+                        'checked_in_at': None
+                    })
                 except (ValueError, TypeError):
                     raise ValueError(f"Invalid volume in primary field: {vol}")
         else:
             # Parse as single volume
             try:
-                volumes.append(float(volume1_str))
+                samples.append({
+                    'volume': float(volume1_str),
+                    'date_created': migration_time,
+                    'date_modified': migration_time,
+                    'is_checked_out': False,
+                    'checked_out_by': None,
+                    'checked_out_at': None,
+                    'checked_in_at': None
+                })
             except (ValueError, TypeError):
                 raise ValueError(f"Invalid primary volume: {volume1}")
-    
+
     # Handle additional volumes from second column (if exists and different)
     if volumes_str and str(volumes_str).strip() not in ('', 'null', 'none'):
         additional = [v.strip() for v in re.split(r'[,\s]+', str(volumes_str)) if v.strip()]
         for vol in additional:
             try:
-                volumes.append(float(vol))
+                samples.append({
+                    'volume': float(vol),
+                    'date_created': migration_time,
+                    'date_modified': migration_time,
+                    'is_checked_out': False,
+                    'checked_out_by': None,
+                    'checked_out_at': None,
+                    'checked_in_at': None
+                })
             except (ValueError, TypeError):
                 raise ValueError(f"Invalid additional volume: {vol}")
-    
-    return volumes
+
+    return samples
 
 def migrate_csv():
     """Migrate CSV data to new PostgreSQL schema with sample metadata"""
@@ -119,17 +149,17 @@ def migrate_csv():
                     try:
                         # Parse and validate data using your cleansed CSV structure
                         volumes = parse_volumes(row.get('Volume(mL)'), row.get('Volumes(mL)'))
-                        
-                        # Create plasmid object to validate data
+
+                        # Create record object to validate data
                         plasmid = Plasmid(
                             lot=row.get("Lot #"),
                             sublot=row.get("Variant #"),
                             bag=row.get("BAG ID"),
-                            volumes=volumes,
+                            samples=volumes,
                             notes=row.get("Notes", "")
                         )
                         
-                        # Insert plasmid record (without volumes)
+                        # Insert record record (without volumes)
                         plasmid_query = """
                             INSERT INTO plasmids (lot, sublot, bag, notes, date_added) 
                             VALUES (%s, %s, %s, %s, %s)
@@ -170,7 +200,7 @@ def migrate_csv():
                         return False
             
             cur.execute("COMMIT")
-            print(f"\n🎯 Migration SUCCESS: {i} plasmid records with samples migrated")
+            print(f"\n🎯 Migration SUCCESS: {i} record records with samples migrated")
             return True
             
     except Exception as e:
