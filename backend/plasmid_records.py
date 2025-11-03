@@ -1,7 +1,6 @@
 import datetime
 import re
 
-#todo: consider the fact lots could have letters. ask sean,dave
 
 class Plasmid:
     # empties for records that exist (samples/volumes and notes), None for temp objects

@@ -121,11 +121,11 @@ def find_plasmids_by_bag(bag_name, filters=None):
     where_clause = " AND ".join(base_conditions)
     return _unified_plasmids_query(where_clause, params, filters, "p.lot, p.sublot")
 
-def find_plasmids_by_lot(lot, filters=None):
+def find_plasmids_by_lot(lot_collection, filters=None):
     """Find all plasmids with a specific lot number (all sublots)"""
 
-    base_conditions = ["p.lot = %s"]
-    params = [lot]
+    base_conditions = ["p.lot IN (SELECT UNNEST(%s))"]
+    params = [lot_collection]
 
     # Add additional filter conditions
     filter_conditions, filter_params = _build_filter_conditions(filters)

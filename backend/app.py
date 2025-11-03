@@ -55,7 +55,9 @@ def search_records():
 
     Input patterns:
     - "5317" -> search by lot only
+    - "5317, 5318, 5319" -> search by multiple lots
     - "5317-1, 5317-2" -> search by specific lot-sublot combinations
+    - "5317-1, 5318, 5319-2" -> mixed: specific sublots and all sublots
     - "C25" -> search by bag
     """
     import re
@@ -85,19 +87,56 @@ def search_records():
             validated_bag = Plasmid.validate_bag(user_input)
             results = find_plasmids_by_bag(validated_bag)
 
-        #lot search route - find all variants for a lot number
-        elif re.match(r'^\d+$', user_input):
-            # Validate lot format using Plasmid's validation
-            validated_lot = Plasmid.validate_lot(user_input)
-            results = find_plasmids_by_lot(validated_lot)
-        # Otherwise, treat as record collection (lot-sublot combinations)
+        #lot search route - find all variants for lot number(s)
+        elif re.match(r'^\d+(?:[\s,;]+\d+)*$', user_input):
+            # Parse lot numbers separated by commas, semicolons, or spaces
+            lot_strings = re.split(r'[\s,;]+', user_input.strip())
+            lot_strings = [lot.strip() for lot in lot_strings if lot.strip() and lot.strip().isdigit()]
+            validated_lots = [Plasmid.validate_lot(lot) for lot in lot_strings]
+            results = find_plasmids_by_lot(validated_lots)
+        # Otherwise, handle mixed input (lot-sublot combinations and/or bare lots)
         else:
             try:
-                # Use existing PlasmidCollection parsing (which does its own validation)
-                # this is instantiated using factory function so we need try catch
-                user_input_collection = PlasmidCollection.from_user_input(user_input)
-                results = find_plasmids(user_input_collection)
-                summary = user_input_collection.to_dict(results)
+                # Parse mixed input: "1234-1, 2345, 3456-2"
+                input_strings = re.split(r'[\s,;]+', user_input.strip())
+                input_strings = [s.strip() for s in input_strings if s.strip()]
+
+                specific_plasmids = []  # For lot-sublot pairs like "1234-1"
+                bare_lots = []         # For bare lots like "2345"
+
+                for input_str in input_strings:
+                    if re.match(r'^\d+-\d+$', input_str):
+                        # Specific lot-sublot pair
+                        specific_plasmids.append(input_str)
+                    elif re.match(r'^\d+$', input_str):
+                        # Bare lot - find all sublots
+                        bare_lots.append(input_str)
+                    else:
+                        raise ValueError(f"Invalid format: '{input_str}'")
+
+                # Get results from both sources
+                all_results = PlasmidCollection([])
+
+                # Handle specific lot-sublot pairs
+                if specific_plasmids:
+                    specific_input = ', '.join(specific_plasmids)
+                    user_input_collection = PlasmidCollection.from_user_input(specific_input)
+                    specific_results = find_plasmids(user_input_collection)
+                    all_results.extend(specific_results)
+
+                # Handle bare lots
+                if bare_lots:
+                    validated_lots = [Plasmid.validate_lot(lot) for lot in bare_lots]
+                    lot_results = find_plasmids_by_lot(validated_lots)
+                    all_results.extend(lot_results)
+
+                results = all_results
+
+                summary = {
+                    "bags": results.group_by_bags(),
+                    "found": f"{len(results)}"
+                }
+
             except Exception as e:
                 raise ValueError(f"Invalid search input format: {user_input}. Expected formats: '5317', '5317-1', '5317-1, 5317-2', or 'C25'. Error: {str(e)}")
 
