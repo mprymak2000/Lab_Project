@@ -30,7 +30,6 @@ npm run preview      # Preview production build
 ```bash
 cd backend
 python app.py        # Run Flask development server on localhost:5000
-python -m pytest test_business_logic.py test_plasmid.py  # Run tests
 ```
 
 ### Docker Operations
