@@ -21,9 +21,13 @@ const App = () => {
     const [refreshRecords, setRefreshRecords] = useState(false); //toggle to refresh
     const [searchTerm, setSearchTerm] = useState('');
 
+    //loading state to be drilled into header search op and main page ops
     const [loading, setLoading] = useState(false);
     const [availableBags, setAvailableBags] = useState([]);
 
+    // Simple authentication state
+    const [isPasswordVerified, setIsPasswordVerified] = useState(localStorage.getItem('labPasswordVerified') === 'true');
+    const [currentUser, setCurrentUser] = useState(localStorage.getItem('currentLabUser'));
 
     //  health check system, occurs every 30 seconds displayed in header
     useEffect(() => {

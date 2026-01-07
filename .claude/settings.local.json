@@ -1,5 +1,4 @@
 {
-  "model": "claude-sonnet-4-20250514",
   "permissions": {
     "allow": [
       "Bash(npm run dev:*)",
@@ -10,5 +9,7 @@
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "model": "claude-sonnet-4-20250514",
+  "outputStyle": "Learning"
 }

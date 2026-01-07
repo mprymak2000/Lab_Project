@@ -1,11 +1,29 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from flask_httpauth import HTTPBasicAuth
 
 from plasmid_record_repository import get_all_plasmids, find_plasmids, add_plasmid_record, modify_plasmid_record, delete_plasmid_record, check_database_health, find_plasmids_by_bag, find_plasmids_by_lot
 from plasmid_records import Plasmid, PlasmidCollection
 
 app = Flask(__name__)
 CORS(app)
+
+# HTTP Basic Auth setup
+auth = HTTPBasicAuth()
+
+@auth.verify_password
+def verify_password(username, password):
+    # Change these credentials!
+    return username == 'lab' and password == 'lab2024'
+
+@auth.error_handler
+def auth_error(status):
+    return jsonify({'error': 'Access denied'}), 401, {'WWW-Authenticate': 'Basic realm="Lab Access"'}
+
+@app.before_request
+@auth.login_required
+def require_auth():
+    pass  # All routes now require HTTP Basic Auth
 
 @app.route('/health', methods=['GET'])
 def health_check():
@@ -18,7 +36,7 @@ def health_check():
 def database_health_check():
     try:
         is_healthy, message = check_database_health()
-        
+
         if is_healthy:
             return jsonify({
                 'success': True,
